@@ -493,6 +493,7 @@
     <select id="facility-filter">
       <option value="all">全施設を表示</option>
     </select>
+    <span id="role-badge" class="logout-btn" style="display:none; cursor:default;"></span>
     <button class="logout-btn" id="logout-btn" style="display:none;">ログアウト</button>
   </div>
 </header>
@@ -500,7 +501,7 @@
 <div class="layout">
   <aside class="list-pane" id="list-pane">
     <div class="search-row">
-      <input type="text" id="search-input" placeholder="氏名・フリガナで検索">
+      <input type="text" id="search-input" placeholder="氏名・フリガナ・施設名で検索">
       <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
       <div class="btn-row">
         <button class="secondary-btn" id="download-template">テンプレートDL</button>
@@ -630,6 +631,7 @@ let employees = [
 let tempHistory = null;
 let tempPhoto = null;
 let pendingPhotoFile = null;
+let currentUserRole = 'editor'; // デモモード・クラウド未接続時は編集可扱い
 
 let activeId = null;
 let editing = false;
@@ -660,7 +662,7 @@ function renderList(){
   const fac = facilityFilter.value;
   listEl.innerHTML = '';
   const filtered = employees.filter(e=>{
-    const matchesQ = !q || e.name.includes(q) || e.kana.includes(q);
+    const matchesQ = !q || e.name.includes(q) || e.kana.includes(q) || e.facility.includes(q);
     const matchesFac = fac === 'all' || e.facility === fac;
     return matchesQ && matchesFac;
   });
@@ -721,6 +723,7 @@ function renderDetail(){
     detailContent.innerHTML = '<div class="no-selection">左の一覧からスタッフを選択してください</div>';
     return;
   }
+  if(currentUserRole !== 'editor'){ editing = false; }
   const initial = e.name.charAt(0);
   const currentPhoto = tempPhoto === 'REMOVE' ? null : (tempPhoto || e.photo);
 
@@ -745,7 +748,7 @@ function renderDetail(){
           <span class="badge ${statusBadgeClass(e.status)}">${e.status}</span>
         </div>
       </div>
-      <button class="edit-toggle" id="edit-toggle">${editing ? '編集を終了' : '編集する'}</button>
+      <button class="edit-toggle" id="edit-toggle" style="${currentUserRole==='editor' ? '' : 'display:none;'}">${editing ? '編集を終了' : '編集する'}</button>
     </div>
 
     <div class="tabs">
@@ -757,6 +760,7 @@ function renderDetail(){
     <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
       <div class="field-grid">
         ${field('生年月日', e, 'birthday', 'date')}
+        ${derivedField('年齢', calcAge(e.birthday))}
         ${field('性別', e, 'gender')}
         ${field('住所', e, 'address')}
         ${field('電話番号', e, 'phone')}
@@ -771,6 +775,7 @@ function renderDetail(){
         ${selectField('雇用区分', e, 'employment', ['正社員','契約社員','パート・アルバイト'])}
         ${selectField('在籍状況', e, 'status', ['在籍中','休職中','産休・育休中','退職'])}
         ${field('入社日', e, 'joinDate', 'date')}
+        ${derivedField('勤続年数', calcTenure(e.joinDate))}
       </div>
       <div class="field-grid span-2" style="margin-top:20px;">
         ${field('資格・研修等の備考', e, 'notes')}
@@ -954,6 +959,39 @@ function selectField(label, obj, key, options){
     return `<div class="field"><label>${label}</label><select data-field="${key}">${opts}</select></div>`;
   }
   return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
+}
+
+// 生年月日・入社日から自動計算する表示専用の項目（編集不可）
+function derivedField(label, value){
+  return `<div class="field"><label>${label}</label><div class="value">${value}</div></div>`;
+}
+
+function calcAge(birthday){
+  if(!birthday) return '—';
+  const b = new Date(birthday);
+  if(isNaN(b)) return '—';
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const beforeBirthdayThisYear = (today.getMonth() < b.getMonth()) ||
+    (today.getMonth() === b.getMonth() && today.getDate() < b.getDate());
+  if(beforeBirthdayThisYear) age--;
+  return age + '歳';
+}
+
+function calcTenure(joinDate){
+  if(!joinDate) return '—';
+  const j = new Date(joinDate);
+  if(isNaN(j)) return '—';
+  const today = new Date();
+  let years = today.getFullYear() - j.getFullYear();
+  let months = today.getMonth() - j.getMonth();
+  if(today.getDate() < j.getDate()) months--;
+  if(months < 0){ years--; months += 12; }
+  if(years <= 0 && months <= 0) return '1ヶ月未満';
+  const parts = [];
+  if(years > 0) parts.push(years + '年');
+  if(months > 0) parts.push(months + 'ヶ月');
+  return parts.join('');
 }
 
 searchInput.addEventListener('input', renderList);
@@ -1167,7 +1205,32 @@ async function checkSession(){
 async function enterApp(){
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('logout-btn').style.display = 'inline-block';
+  await loadCurrentUserRole();
   await loadEmployeesFromDb();
+}
+
+async function loadCurrentUserRole(){
+  const { data: userData } = await supabaseClient.auth.getUser();
+  const uid = userData?.user?.id;
+  if(!uid){ currentUserRole = 'viewer'; }
+  else {
+    const { data, error } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', uid)
+      .single();
+    currentUserRole = (!error && data) ? data.role : 'viewer';
+  }
+  applyRolePermissions();
+}
+
+function applyRolePermissions(){
+  const isEditor = currentUserRole === 'editor';
+  const badge = document.getElementById('role-badge');
+  badge.style.display = 'inline-block';
+  badge.textContent = isEditor ? '編集可能' : '閲覧のみ';
+  document.getElementById('open-add-modal').style.display = isEditor ? '' : 'none';
+  document.getElementById('open-import').style.display = isEditor ? '' : 'none';
 }
 
 document.getElementById('login-btn').addEventListener('click', async ()=>{
