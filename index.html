@@ -545,9 +545,11 @@
     <div class="field"><label>役職</label><input id="m-role" placeholder="児童指導員 / サービス管理責任者 など"></div>
     <div class="field"><label>雇用区分</label>
       <select id="m-employment">
-        <option>正社員</option>
-        <option>契約社員</option>
-        <option>パート・アルバイト</option>
+        <option>社員</option>
+        <option>パートドライバー</option>
+        <option>パート</option>
+        <option>ドライバー</option>
+        <option>常勤パート</option>
       </select>
     </div>
     <div class="field"><label>入社日</label><input id="m-join" type="date"></div>
@@ -576,15 +578,15 @@ const supabaseClient = isSupabaseConfigured()
 
 // ---------- サンプルデータ（デモモード用のダミー値。クラウド接続時はDBの内容に置き換わります） ----------
 const FACILITIES = [
-  "西新井本部",
-  "竹の塚ステップ",
-  "西新井さくら",
-  "梅島LC",
-  "北千住LC",
-  "綾瀬LC",
-  "五反野LC",
-  "六町LC",
-  "谷在家LC"
+  "きたせんじゅ 第1",
+  "きたせんじゅ 第2",
+  "きたせんじゅ 第3",
+  "きたせんじゅ 第4",
+  "きたせんじゅ 第5",
+  "おだい 第1",
+  "こいわ 第1",
+  "こいわ 第2",
+  "こいわ 第3"
 ];
 
 let employees = [
@@ -772,7 +774,7 @@ function renderDetail(){
       <div class="field-grid">
         ${selectField('所属施設', e, 'facility', FACILITIES)}
         ${field('役職', e, 'role')}
-        ${selectField('雇用区分', e, 'employment', ['正社員','契約社員','パート・アルバイト'])}
+        ${selectField('雇用区分', e, 'employment', ['社員','パートドライバー','パート','ドライバー','常勤パート'])}
         ${selectField('在籍状況', e, 'status', ['在籍中','休職中','産休・育休中','退職'])}
         ${field('入社日', e, 'joinDate', 'date')}
         ${derivedField('勤続年数', calcTenure(e.joinDate))}
@@ -1059,7 +1061,7 @@ function excelDateToStr(v){
 
 document.getElementById('download-template').addEventListener('click', ()=>{
   const wb = XLSX.utils.book_new();
-  const sampleRow = TEMPLATE_HEADERS.map(h => h === "所属施設" ? FACILITIES[0] : (h === "雇用区分" ? "正社員" : (h === "在籍状況" ? "在籍中" : "")));
+  const sampleRow = TEMPLATE_HEADERS.map(h => h === "所属施設" ? FACILITIES[0] : (h === "雇用区分" ? "社員" : (h === "在籍状況" ? "在籍中" : "")));
   const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, sampleRow]);
   ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
   XLSX.utils.book_append_sheet(wb, ws, "スタッフ一覧");
