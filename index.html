@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スタッフ情報データベース</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #FAFAF6;
+    --panel: #FFFFFF;
+    --ink: #262622;
+    --ink-soft: #6B6A62;
+    --line: #DEDACC;
+    --primary: #1F3A3D;
+    --primary-soft: #E8EEEC;
+    --accent: #6B8F71;
+    --accent-soft: #EDF2EA;
+    --gold: #B8912A;
+    --danger: #A6462F;
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.serif{ font-family:'Zen Old Mincho', serif; }
+
+  header.top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    background:var(--primary);
+    color:#fff;
+  }
+  header.top .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  header.top .brand h1{
+    font-size:19px;
+    margin:0;
+    font-weight:700;
+    letter-spacing:.02em;
+  }
+  header.top .brand span{
+    font-size:12px;
+    color:#C9D6D2;
+  }
+  header.top select{
+    background:transparent;
+    border:1px solid rgba(255,255,255,.4);
+    color:#fff;
+    padding:6px 10px;
+    font-size:13px;
+    border-radius:var(--radius);
+  }
+  header.top select option{ color:#111; }
+
+  .layout{
+    display:grid;
+    grid-template-columns:320px 1fr;
+    min-height:calc(100vh - 54px);
+  }
+  @media (max-width:820px){
+    .layout{ grid-template-columns:1fr; }
+    .list-pane.hide-on-mobile{ display:none; }
+    .detail-pane.hide-on-mobile{ display:none; }
+  }
+
+  .list-pane{
+    border-right:1px solid var(--line);
+    background:var(--panel);
+    display:flex;
+    flex-direction:column;
+  }
+  .list-pane .search-row{
+    padding:14px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .list-pane input, .list-pane select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    font-size:14px;
+    font-family:inherit;
+    background:#fff;
+  }
+  .list-pane input:focus, .list-pane select:focus{
+    outline:2px solid var(--accent);
+    outline-offset:-1px;
+  }
+  .add-btn{
+    padding:9px 10px;
+    border:1px solid var(--primary);
+    background:var(--primary);
+    color:#fff;
+    border-radius:var(--radius);
+    font-size:13px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .add-btn:hover{ background:#16292b; }
+
+  .secondary-btn{
+    padding:9px 10px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--primary);
+    border-radius:var(--radius);
+    font-size:13px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .secondary-btn:hover{ border-color:var(--primary); }
+  .btn-row{ display:flex; gap:8px; }
+  .btn-row .secondary-btn, .btn-row .add-btn{ flex:1; }
+  .import-note{
+    font-size:11px;
+    color:var(--ink-soft);
+    line-height:1.5;
+  }
+
+  .emp-list{
+    list-style:none;
+    margin:0;
+    padding:0;
+    overflow-y:auto;
+  }
+  .emp-list li{
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  .emp-list li:hover{ background:var(--accent-soft); }
+  .emp-list li.active{ background:var(--primary-soft); border-left:3px solid var(--primary); }
+  .emp-list .name{ font-size:15px; font-weight:500; }
+  .emp-list .kana{ font-size:11px; color:var(--ink-soft); display:block; }
+  .emp-list .facility-tag{
+    font-size:10.5px;
+    color:var(--ink-soft);
+    border:1px solid var(--line);
+    padding:2px 6px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .emp-list .empty{
+    padding:24px 14px;
+    color:var(--ink-soft);
+    font-size:13px;
+    text-align:center;
+  }
+
+  .detail-pane{
+    padding:24px 28px 60px;
+    overflow-y:auto;
+  }
+  .detail-header{
+    display:flex;
+    gap:20px;
+    align-items:flex-start;
+    padding-bottom:20px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:20px;
+  }
+  .back-btn{
+    display:none;
+    background:none;
+    border:none;
+    color:var(--primary);
+    font-size:14px;
+    cursor:pointer;
+    padding:0 0 12px;
+    font-family:inherit;
+  }
+  @media (max-width:820px){
+    .back-btn.show{ display:block; }
+  }
+  .photo-box{
+    position:relative;
+    width:96px;
+    height:128px;
+    flex-shrink:0;
+  }
+  .photo{
+    width:100%;
+    height:100%;
+    border-radius:2px;
+    background:var(--primary-soft);
+    color:var(--primary);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:30px;
+    font-weight:700;
+    font-family:'Zen Old Mincho', serif;
+    border:1px solid var(--line);
+    overflow:hidden;
+  }
+  .photo img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .photo-edit-row{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    margin-top:6px;
+  }
+  .photo-edit-row label, .photo-edit-row button{
+    font-size:10.5px;
+    text-align:center;
+    padding:3px 4px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:#fff;
+    color:var(--primary);
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .photo-edit-row button.remove{ color:var(--danger); }
+  .list-thumb{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    object-fit:cover;
+    flex-shrink:0;
+    border:1px solid var(--line);
+  }
+  .list-thumb-fallback{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    background:var(--primary-soft);
+    color:var(--primary);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    font-weight:700;
+    font-family:'Zen Old Mincho', serif;
+    flex-shrink:0;
+    border:1px solid var(--line);
+  }
+  .detail-header .id-block h2{
+    margin:0 0 2px;
+    font-size:22px;
+  }
+  .detail-header .id-block .kana{
+    color:var(--ink-soft);
+    font-size:13px;
+    margin-bottom:8px;
+    display:block;
+  }
+  .badge-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .badge{
+    font-size:11.5px;
+    padding:3px 9px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+  }
+  .badge.role{ background:var(--accent-soft); color:#3E5B44; border-color:transparent; }
+  .badge.status-active{ background:var(--accent-soft); color:#3E5B44; border-color:transparent; }
+  .badge.status-leave{ background:#F5EBE5; color:var(--danger); border-color:transparent; }
+
+  .edit-toggle{
+    margin-left:auto;
+    align-self:flex-start;
+    background:none;
+    border:1px solid var(--line);
+    padding:7px 14px;
+    font-size:13px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    color:var(--primary);
+    font-family:inherit;
+  }
+  .edit-toggle:hover{ border-color:var(--primary); }
+
+  .tabs{
+    display:flex;
+    gap:2px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:22px;
+  }
+  .tab-btn{
+    background:none;
+    border:none;
+    padding:10px 4px;
+    margin-right:22px;
+    font-size:14px;
+    color:var(--ink-soft);
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    font-family:inherit;
+  }
+  .tab-btn.active{
+    color:var(--primary);
+    border-bottom-color:var(--primary);
+    font-weight:500;
+  }
+
+  .field-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px 32px;
+  }
+  @media (max-width:600px){
+    .field-grid{ grid-template-columns:1fr; }
+  }
+  .field-grid.span-2{ grid-template-columns:1fr; }
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+  }
+  .field label{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    letter-spacing:.02em;
+  }
+  .field .value{
+    font-size:15px;
+    padding-bottom:6px;
+    border-bottom:1px solid var(--line);
+    min-height:22px;
+  }
+  .field input, .field select{
+    font-size:15px;
+    padding:6px 2px;
+    border:none;
+    border-bottom:1px solid var(--accent);
+    background:var(--accent-soft);
+    font-family:inherit;
+  }
+  .field input:focus{ outline:none; }
+
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .save-row{
+    margin-top:28px;
+    display:flex;
+    gap:10px;
+  }
+  .save-row button{
+    font-family:inherit;
+    font-size:14px;
+    padding:9px 20px;
+    border-radius:var(--radius);
+    cursor:pointer;
+  }
+  .save-row .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
+  .save-row .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
+
+  .no-selection{
+    color:var(--ink-soft);
+    font-size:14px;
+    padding:60px 20px;
+    text-align:center;
+  }
+
+  .hist-title{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+    letter-spacing:.02em;
+  }
+  table.hist-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:14px;
+  }
+  table.hist-table th{
+    text-align:left;
+    font-size:11.5px;
+    font-weight:500;
+    color:var(--ink-soft);
+    border-bottom:1px solid var(--line);
+    padding:6px 8px;
+  }
+  table.hist-table td{
+    padding:8px;
+    border-bottom:1px solid var(--line);
+  }
+  table.hist-table input, table.hist-table select{
+    width:100%;
+    font-size:14px;
+    font-family:inherit;
+    border:1px solid var(--line);
+    padding:5px 6px;
+    border-radius:var(--radius);
+  }
+  .hist-remove{
+    background:none;
+    border:none;
+    color:var(--danger);
+    font-size:12.5px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .hist-add{
+    margin-top:10px;
+    background:none;
+    border:1px dashed var(--line);
+    color:var(--primary);
+    padding:7px 12px;
+    font-size:13px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .hist-add:hover{ border-color:var(--primary); }
+
+  /* --- Add employee modal (simple inline panel) --- */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(31,58,61,.35);
+    display:flex; align-items:center; justify-content:center;
+    z-index:50;
+  }
+  .modal{
+    background:#fff; width:min(480px, 92vw);
+    padding:24px; border-radius:var(--radius);
+    max-height:86vh; overflow-y:auto;
+  }
+  .modal h3{ margin-top:0; }
+  .modal .field{ margin-bottom:14px; }
+  .modal .field input, .modal .field select{
+    border:1px solid var(--line);
+    background:#fff;
+    padding:8px;
+    border-radius:var(--radius);
+  }
+
+  .demo-banner{
+    background:#FBF1D6;
+    color:#6B5417;
+    font-size:12.5px;
+    text-align:center;
+    padding:6px 10px;
+  }
+  .logout-btn{
+    background:none;
+    border:1px solid rgba(255,255,255,.4);
+    color:#fff;
+    padding:6px 12px;
+    font-size:12.5px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    font-family:inherit;
+    margin-left:10px;
+  }
+  #login-error{
+    color:var(--danger);
+    font-size:13px;
+    display:none;
+    margin-top:4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner" id="demo-banner" style="display:none;">
+  ⚠ デモモード：Supabase未接続のため、この端末内だけの仮データで動作しています
+</div>
+
+<header class="top">
+  <div class="brand">
+    <h1>スタッフ情報データベース</h1>
+    <span id="facility-count-label">全9施設</span>
+  </div>
+  <div>
+    <select id="facility-filter">
+      <option value="all">全施設を表示</option>
+    </select>
+    <button class="logout-btn" id="logout-btn" style="display:none;">ログアウト</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="list-pane" id="list-pane">
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="氏名・フリガナで検索">
+      <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
+      <div class="btn-row">
+        <button class="secondary-btn" id="download-template">テンプレートDL</button>
+        <button class="secondary-btn" id="open-import">Excelから取込</button>
+      </div>
+      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
+      <div class="import-note">テンプレートの列見出しに合わせて入力したExcelファイルを取り込めます。既存データに追加されます。</div>
+    </div>
+    <ul class="emp-list" id="emp-list"></ul>
+  </aside>
+
+  <section class="detail-pane" id="detail-pane">
+    <button class="back-btn" id="back-btn">← 一覧に戻る</button>
+    <div id="detail-content">
+      <div class="no-selection">左の一覧からスタッフを選択してください</div>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="login-overlay" style="display:none;">
+  <div class="modal">
+    <h3 class="serif">ログイン</h3>
+    <div class="field"><label>メールアドレス</label><input id="login-email" type="email" placeholder="staff@example.com"></div>
+    <div class="field"><label>パスワード</label><input id="login-password" type="password"></div>
+    <div class="save-row">
+      <button class="save" id="login-btn">ログイン</button>
+    </div>
+    <p id="login-error"></p>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <h3 class="serif">スタッフ新規登録</h3>
+    <div class="field"><label>氏名</label><input id="m-name" placeholder="山田 太郎"></div>
+    <div class="field"><label>フリガナ</label><input id="m-kana" placeholder="ヤマダ タロウ"></div>
+    <div class="field">
+      <label>所属施設</label>
+      <select id="m-facility"></select>
+    </div>
+    <div class="field"><label>役職</label><input id="m-role" placeholder="児童指導員 / サービス管理責任者 など"></div>
+    <div class="field"><label>雇用区分</label>
+      <select id="m-employment">
+        <option>正社員</option>
+        <option>契約社員</option>
+        <option>パート・アルバイト</option>
+      </select>
+    </div>
+    <div class="field"><label>入社日</label><input id="m-join" type="date"></div>
+    <div class="save-row">
+      <button class="save" id="m-save">登録する</button>
+      <button class="cancel" id="m-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= クラウド接続設定 =================
+// Supabaseプロジェクトの Project URL と anon public key に書き換えてください。
+// 未設定（初期値のまま）の場合はデモモードで動作します（この端末内だけの仮データ）。
+const SUPABASE_URL = 'https://abfzvigpxdogsxxtfrvk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_ZI27NjYkmAC-XbCxVVsqTw_2Rla1Je8';
+
+function isSupabaseConfigured(){
+  return SUPABASE_URL && !SUPABASE_URL.includes('ここに') &&
+         SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('ここに');
+}
+
+const supabaseClient = isSupabaseConfigured()
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+// ---------- サンプルデータ（デモモード用のダミー値。クラウド接続時はDBの内容に置き換わります） ----------
+const FACILITIES = [
+  "西新井本部",
+  "竹の塚ステップ",
+  "西新井さくら",
+  "梅島LC",
+  "北千住LC",
+  "綾瀬LC",
+  "五反野LC",
+  "六町LC",
+  "谷在家LC"
+];
+
+let employees = [
+  {
+    id: "S00142", name: "佐藤 美咲", kana: "サトウ ミサキ",
+    facility: "西新井本部", role: "サービス管理責任者", employment: "正社員",
+    status: "在籍中", birthday: "1990-04-12", gender: "女性",
+    joinDate: "2019-06-01", address: "東京都足立区西新井本町2-3-1",
+    phone: "090-1234-5678", email: "sato@example.com",
+    emergencyName: "佐藤 健一（配偶者）", emergencyPhone: "090-8765-4321",
+    notes: "児童発達支援管理責任者研修 修了（2021年）",
+    history: [
+      { date:"2019-06-01", type:"配属", facility:"西新井本部", role:"児童指導員" },
+      { date:"2021-04-01", type:"昇格", facility:"西新井本部", role:"サービス管理責任者" }
+    ]
+  },
+  {
+    id: "S00187", name: "中村 拓也", kana: "ナカムラ タクヤ",
+    facility: "竹の塚ステップ", role: "児童指導員", employment: "正社員",
+    status: "在籍中", birthday: "1993-11-02", gender: "男性",
+    joinDate: "2022-04-01", address: "東京都足立区竹の塚4-1-9",
+    phone: "080-2222-3333", email: "nakamura@example.com",
+    emergencyName: "中村 恵子（母）", emergencyPhone: "080-4444-5555",
+    notes: "",
+    history: [
+      { date:"2022-04-01", type:"配属", facility:"梅島LC", role:"児童指導員" },
+      { date:"2023-10-01", type:"異動", facility:"竹の塚ステップ", role:"児童指導員" }
+    ]
+  },
+  {
+    id: "S00203", name: "田中 陽菜", kana: "タナカ ヒナ",
+    facility: "梅島LC", role: "保育士", employment: "パート・アルバイト",
+    status: "産休・育休中", birthday: "1997-02-20", gender: "女性",
+    joinDate: "2023-09-01", address: "東京都足立区梅島1-5-2",
+    phone: "070-1111-2222", email: "tanaka@example.com",
+    emergencyName: "田中 大輔（配偶者）", emergencyPhone: "070-3333-4444",
+    notes: "",
+    history: [
+      { date:"2023-09-01", type:"配属", facility:"梅島LC", role:"保育士" }
+    ]
+  }
+];
+
+let tempHistory = null;
+let tempPhoto = null;
+let pendingPhotoFile = null;
+
+let activeId = null;
+let editing = false;
+let activeTab = 'basic';
+
+const listEl = document.getElementById('emp-list');
+const detailContent = document.getElementById('detail-content');
+const searchInput = document.getElementById('search-input');
+const facilityFilter = document.getElementById('facility-filter');
+const listPane = document.getElementById('list-pane');
+const detailPane = document.getElementById('detail-pane');
+const backBtn = document.getElementById('back-btn');
+
+function initFacilityOptions(){
+  FACILITIES.forEach(f=>{
+    const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
+    facilityFilter.appendChild(o1);
+    const o2 = document.createElement('option'); o2.value=f; o2.textContent=f;
+    document.getElementById('m-facility').appendChild(o2);
+  });
+  document.getElementById('facility-count-label').textContent = `全${FACILITIES.length}施設`;
+}
+
+function isMobile(){ return window.innerWidth <= 820; }
+
+function renderList(){
+  const q = searchInput.value.trim();
+  const fac = facilityFilter.value;
+  listEl.innerHTML = '';
+  const filtered = employees.filter(e=>{
+    const matchesQ = !q || e.name.includes(q) || e.kana.includes(q);
+    const matchesFac = fac === 'all' || e.facility === fac;
+    return matchesQ && matchesFac;
+  });
+  if(filtered.length === 0){
+    listEl.innerHTML = '<li class="empty">該当するスタッフがいません</li>';
+    return;
+  }
+  filtered.forEach(e=>{
+    const li = document.createElement('li');
+    li.className = e.id === activeId ? 'active' : '';
+    const thumb = e.photo
+      ? `<img class="list-thumb" src="${e.photo}">`
+      : `<div class="list-thumb-fallback">${e.name.charAt(0)}</div>`;
+    li.innerHTML = `
+      ${thumb}
+      <div style="flex:1;">
+        <span class="name">${e.name}</span>
+        <span class="kana">${e.kana}</span>
+      </div>
+      <span class="facility-tag">${e.facility}</span>
+    `;
+    li.addEventListener('click', ()=>selectEmployee(e.id));
+    listEl.appendChild(li);
+  });
+}
+
+function selectEmployee(id){
+  activeId = id;
+  editing = false;
+  activeTab = 'basic';
+  tempHistory = null;
+  tempPhoto = null;
+  pendingPhotoFile = null;
+  renderList();
+  renderDetail();
+  if(isMobile()){
+    listPane.classList.add('hide-on-mobile');
+    detailPane.classList.remove('hide-on-mobile');
+    backBtn.classList.add('show');
+  }
+}
+
+backBtn.addEventListener('click', ()=>{
+  listPane.classList.remove('hide-on-mobile');
+  detailPane.classList.add('hide-on-mobile');
+  backBtn.classList.remove('show');
+});
+
+function statusBadgeClass(status){
+  if(status === '在籍中') return 'status-active';
+  if(status === '休職中' || status === '産休・育休中') return 'status-leave';
+  return '';
+}
+
+function renderDetail(){
+  const e = employees.find(x=>x.id === activeId);
+  if(!e){
+    detailContent.innerHTML = '<div class="no-selection">左の一覧からスタッフを選択してください</div>';
+    return;
+  }
+  const initial = e.name.charAt(0);
+  const currentPhoto = tempPhoto === 'REMOVE' ? null : (tempPhoto || e.photo);
+
+  detailContent.innerHTML = `
+    <div class="detail-header">
+      <div class="photo-box">
+        <div class="photo">${currentPhoto ? `<img src="${currentPhoto}">` : initial}</div>
+        ${editing ? `
+        <div class="photo-edit-row">
+          <label for="photo-input">写真を選択</label>
+          ${currentPhoto ? '<button type="button" class="remove" id="photo-remove-btn">削除</button>' : ''}
+        </div>
+        <input type="file" id="photo-input" accept="image/*" style="display:none;">
+        ` : ''}
+      </div>
+      <div class="id-block">
+        <h2 class="serif">${e.name}</h2>
+        <span class="kana">${e.kana}　/　職員番号：${e.id}</span>
+        <div class="badge-row">
+          <span class="badge role">${e.role}</span>
+          <span class="badge">${e.employment}</span>
+          <span class="badge ${statusBadgeClass(e.status)}">${e.status}</span>
+        </div>
+      </div>
+      <button class="edit-toggle" id="edit-toggle">${editing ? '編集を終了' : '編集する'}</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>
+      <button class="tab-btn ${activeTab==='work'?'active':''}" data-tab="work">所属・勤務情報</button>
+      <button class="tab-btn ${activeTab==='emergency'?'active':''}" data-tab="emergency">緊急連絡先</button>
+    </div>
+
+    <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
+      <div class="field-grid">
+        ${field('生年月日', e, 'birthday', 'date')}
+        ${field('性別', e, 'gender')}
+        ${field('住所', e, 'address')}
+        ${field('電話番号', e, 'phone')}
+        ${field('メールアドレス', e, 'email')}
+      </div>
+    </div>
+
+    <div class="tab-panel ${activeTab==='work'?'active':''}" data-panel="work">
+      <div class="field-grid">
+        ${selectField('所属施設', e, 'facility', FACILITIES)}
+        ${field('役職', e, 'role')}
+        ${selectField('雇用区分', e, 'employment', ['正社員','契約社員','パート・アルバイト'])}
+        ${selectField('在籍状況', e, 'status', ['在籍中','休職中','産休・育休中','退職'])}
+        ${field('入社日', e, 'joinDate', 'date')}
+      </div>
+      <div class="field-grid span-2" style="margin-top:20px;">
+        ${field('資格・研修等の備考', e, 'notes')}
+      </div>
+      <div style="margin-top:28px;">
+        <p class="hist-title">所属・異動履歴</p>
+        <table class="hist-table">
+          <thead>
+            <tr><th style="width:120px;">年月日</th><th style="width:100px;">異動区分</th><th>所属施設</th><th>役職</th>${editing ? '<th style="width:50px;"></th>' : ''}</tr>
+          </thead>
+          <tbody id="hist-tbody">
+            ${renderHistoryRows(e)}
+          </tbody>
+        </table>
+        ${editing ? '<button class="hist-add" id="hist-add-row">＋ 履歴を追加</button>' : ''}
+      </div>
+    </div>
+
+    <div class="tab-panel ${activeTab==='emergency'?'active':''}" data-panel="emergency">
+      <div class="field-grid">
+        ${field('緊急連絡先氏名', e, 'emergencyName')}
+        ${field('緊急連絡先電話番号', e, 'emergencyPhone')}
+      </div>
+    </div>
+
+    ${editing ? `
+    <div class="save-row">
+      <button class="save" id="save-btn">保存する</button>
+      <button class="cancel" id="cancel-btn">キャンセル</button>
+    </div>` : ''}
+  `;
+
+  document.getElementById('edit-toggle').addEventListener('click', ()=>{
+    editing = !editing;
+    tempHistory = editing ? JSON.parse(JSON.stringify(e.history || [])) : null;
+    tempPhoto = null;
+    pendingPhotoFile = null;
+    renderDetail();
+  });
+
+  detailContent.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeTab = btn.dataset.tab;
+      detailContent.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      detailContent.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      detailContent.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`).classList.add('active');
+    });
+  });
+
+  if(editing){
+    const photoInput = document.getElementById('photo-input');
+    if(photoInput){
+      photoInput.addEventListener('change', (evt)=>{
+        const file = evt.target.files[0];
+        if(!file) return;
+        if(file.size > 3 * 1024 * 1024){
+          alert('画像サイズは3MB以下にしてください');
+          return;
+        }
+        pendingPhotoFile = file;
+        const reader = new FileReader();
+        reader.onload = (ev)=>{
+          tempPhoto = ev.target.result; // プレビュー用（クラウド接続時は保存時にストレージへ差し替え）
+          renderDetail();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    const photoRemoveBtn = document.getElementById('photo-remove-btn');
+    if(photoRemoveBtn){
+      photoRemoveBtn.addEventListener('click', ()=>{
+        tempPhoto = 'REMOVE';
+        pendingPhotoFile = null;
+        renderDetail();
+      });
+    }
+
+    const addRowBtn = document.getElementById('hist-add-row');
+    if(addRowBtn){
+      addRowBtn.addEventListener('click', ()=>{
+        syncTempHistoryFromInputs();
+        tempHistory.push({date:'', type:'配属', facility: e.facility, role:''});
+        renderDetail();
+      });
+    }
+    detailContent.querySelectorAll('.hist-remove').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        syncTempHistoryFromInputs();
+        tempHistory.splice(Number(btn.dataset.histIdx), 1);
+        renderDetail();
+      });
+    });
+
+    document.getElementById('save-btn').addEventListener('click', async ()=>{
+      syncTempHistoryFromInputs();
+      let updatedRef = null;
+      employees = employees.map(x=>{
+        if(x.id !== e.id) return x;
+        const updated = {...x};
+        detailContent.querySelectorAll('[data-field]').forEach(inp=>{
+          updated[inp.dataset.field] = inp.value;
+        });
+        updated.history = tempHistory;
+        if(tempPhoto === 'REMOVE'){ updated.photo = null; }
+        else if(tempPhoto){ updated.photo = tempPhoto; }
+        updatedRef = updated;
+        return updated;
+      });
+
+      if(isSupabaseConfigured() && updatedRef){
+        if(pendingPhotoFile){
+          try{
+            const url = await uploadPhotoToStorage(pendingPhotoFile, updatedRef);
+            updatedRef.photo = url;
+          } catch(err){
+            alert('写真のアップロードに失敗しました：' + err.message);
+          }
+        } else if(tempPhoto === 'REMOVE'){
+          updatedRef.photo = null;
+        }
+        await updateEmployeeInDb(updatedRef);
+      }
+
+      editing = false;
+      tempHistory = null;
+      tempPhoto = null;
+      pendingPhotoFile = null;
+      renderList();
+      renderDetail();
+    });
+    document.getElementById('cancel-btn').addEventListener('click', ()=>{
+      editing = false;
+      tempHistory = null;
+      tempPhoto = null;
+      pendingPhotoFile = null;
+      renderDetail();
+    });
+  }
+}
+
+function syncTempHistoryFromInputs(){
+  const tbody = document.getElementById('hist-tbody');
+  if(!tbody) return;
+  tbody.querySelectorAll('input[data-hist-idx], select[data-hist-idx]').forEach(inp=>{
+    const idx = Number(inp.dataset.histIdx);
+    const key = inp.dataset.histField;
+    if(tempHistory[idx]) tempHistory[idx][key] = inp.value;
+  });
+}
+
+function renderHistoryRows(e){
+  const rows = editing ? (tempHistory || []) : (e.history || []);
+  if(rows.length === 0){
+    return `<tr><td colspan="${editing?5:4}" style="color:var(--ink-soft); font-size:13px;">登録されている異動履歴はありません</td></tr>`;
+  }
+  return rows.map((h, idx)=>{
+    if(editing){
+      return `<tr>
+        <td><input type="date" data-hist-idx="${idx}" data-hist-field="date" value="${h.date||''}"></td>
+        <td><select data-hist-idx="${idx}" data-hist-field="type">${['配属','異動','昇格','降格','退職'].map(t=>`<option ${t===h.type?'selected':''}>${t}</option>`).join('')}</select></td>
+        <td><select data-hist-idx="${idx}" data-hist-field="facility">${FACILITIES.map(f=>`<option ${f===h.facility?'selected':''}>${f}</option>`).join('')}</select></td>
+        <td><input type="text" data-hist-idx="${idx}" data-hist-field="role" value="${h.role||''}"></td>
+        <td><button class="hist-remove" data-hist-idx="${idx}">削除</button></td>
+      </tr>`;
+    }
+    return `<tr><td>${h.date||''}</td><td>${h.type||''}</td><td>${h.facility||''}</td><td>${h.role||''}</td></tr>`;
+  }).join('');
+}
+
+function field(label, obj, key, type='text'){
+  if(editing){
+    return `<div class="field"><label>${label}</label><input data-field="${key}" type="${type}" value="${obj[key] ?? ''}"></div>`;
+  }
+  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
+}
+
+function selectField(label, obj, key, options){
+  if(editing){
+    const opts = options.map(o=>`<option ${o===obj[key]?'selected':''}>${o}</option>`).join('');
+    return `<div class="field"><label>${label}</label><select data-field="${key}">${opts}</select></div>`;
+  }
+  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
+}
+
+searchInput.addEventListener('input', renderList);
+facilityFilter.addEventListener('change', renderList);
+
+// --- 新規追加モーダル ---
+const modalBackdrop = document.getElementById('modal-backdrop');
+document.getElementById('open-add-modal').addEventListener('click', ()=>{
+  modalBackdrop.style.display = 'flex';
+});
+document.getElementById('m-cancel').addEventListener('click', ()=>{
+  modalBackdrop.style.display = 'none';
+});
+document.getElementById('m-save').addEventListener('click', async ()=>{
+  const name = document.getElementById('m-name').value.trim();
+  if(!name){ alert('氏名を入力してください'); return; }
+  const newId = 'S' + String(10000 + employees.length + Math.floor(Math.random()*89)).slice(-5);
+  const newEmp = {
+    id: newId,
+    name,
+    kana: document.getElementById('m-kana').value.trim(),
+    facility: document.getElementById('m-facility').value || FACILITIES[0],
+    role: document.getElementById('m-role').value.trim(),
+    employment: document.getElementById('m-employment').value,
+    status: '在籍中',
+    birthday: '', gender: '', joinDate: document.getElementById('m-join').value,
+    address: '', phone: '', email: '',
+    emergencyName: '', emergencyPhone: '', notes: '',
+    history: [{ date: document.getElementById('m-join').value, type: '配属', facility: document.getElementById('m-facility').value || FACILITIES[0], role: document.getElementById('m-role').value.trim() }]
+  };
+  employees.push(newEmp);
+  modalBackdrop.style.display = 'none';
+  ['m-name','m-kana','m-role','m-join'].forEach(id=>document.getElementById(id).value='');
+  renderList();
+  selectEmployee(newId);
+  if(isSupabaseConfigured()){
+    await insertEmployeeToDb(newEmp);
+  }
+});
+
+// ---------- Excelテンプレート ダウンロード / 取込 ----------
+const TEMPLATE_HEADERS = [
+  "氏名","フリガナ","職員番号","所属施設","役職","雇用区分","在籍状況",
+  "生年月日","性別","入社日","住所","電話番号","メールアドレス",
+  "緊急連絡先氏名","緊急連絡先電話番号","備考"
+];
+
+const HEADER_TO_KEY = {
+  "氏名":"name", "フリガナ":"kana", "職員番号":"id", "所属施設":"facility",
+  "役職":"role", "雇用区分":"employment", "在籍状況":"status",
+  "生年月日":"birthday", "性別":"gender", "入社日":"joinDate",
+  "住所":"address", "電話番号":"phone", "メールアドレス":"email",
+  "緊急連絡先氏名":"emergencyName", "緊急連絡先電話番号":"emergencyPhone", "備考":"notes"
+};
+
+function excelDateToStr(v){
+  if(v instanceof Date && !isNaN(v)){
+    const y = v.getFullYear();
+    const m = String(v.getMonth()+1).padStart(2,'0');
+    const d = String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  return v ?? '';
+}
+
+document.getElementById('download-template').addEventListener('click', ()=>{
+  const wb = XLSX.utils.book_new();
+  const sampleRow = TEMPLATE_HEADERS.map(h => h === "所属施設" ? FACILITIES[0] : (h === "雇用区分" ? "正社員" : (h === "在籍状況" ? "在籍中" : "")));
+  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, sampleRow]);
+  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
+  XLSX.utils.book_append_sheet(wb, ws, "スタッフ一覧");
+  XLSX.writeFile(wb, "スタッフ情報_取込テンプレート.xlsx");
+});
+
+document.getElementById('open-import').addEventListener('click', ()=>{
+  document.getElementById('excel-input').click();
+});
+
+document.getElementById('excel-input').addEventListener('change', async (evt)=>{
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:true});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+
+      let importedCount = 0;
+      const newlyImported = [];
+      rows.forEach(row=>{
+        const emp = {
+          id:'', name:'', kana:'', facility: FACILITIES[0], role:'', employment:'正社員',
+          status:'在籍中', birthday:'', gender:'', joinDate:'', address:'', phone:'',
+          email:'', emergencyName:'', emergencyPhone:'', notes:'', history:[]
+        };
+        Object.entries(row).forEach(([header, value])=>{
+          const key = HEADER_TO_KEY[header.trim()];
+          if(!key) return;
+          if(key === 'birthday' || key === 'joinDate'){
+            emp[key] = excelDateToStr(value);
+          } else {
+            emp[key] = String(value ?? '').trim();
+          }
+        });
+        if(!emp.name) return; // 氏名が無い行はスキップ
+        if(!emp.id){
+          emp.id = 'S' + String(10000 + employees.length + importedCount + Math.floor(Math.random()*89)).slice(-5);
+        }
+        employees.push(emp);
+        newlyImported.push(emp);
+        importedCount++;
+      });
+
+      renderList();
+
+      if(isSupabaseConfigured()){
+        for(const emp of newlyImported){
+          await insertEmployeeToDb(emp);
+        }
+      }
+
+      alert(`${importedCount}件のスタッフ情報を取り込みました。`);
+    } catch(err){
+      alert('ファイルの読み込みに失敗しました。テンプレートの列見出しと一致しているかご確認ください。');
+      console.error(err);
+    } finally {
+      evt.target.value = '';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ================= クラウド連携（Supabase） =================
+
+function rowToEmployee(row){
+  return {
+    id: row.staff_no || row.id,
+    dbId: row.id,
+    name: row.name, kana: row.kana, facility: row.facility, role: row.role,
+    employment: row.employment, status: row.status, birthday: row.birthday || '',
+    gender: row.gender || '', joinDate: row.join_date || '', address: row.address || '',
+    phone: row.phone || '', email: row.email || '', emergencyName: row.emergency_name || '',
+    emergencyPhone: row.emergency_phone || '', notes: row.notes || '', photo: row.photo_url || null,
+    history: (row.employee_history || []).map(h => ({date: h.date, type: h.type, facility: h.facility, role: h.role}))
+  };
+}
+
+function employeeToRow(emp){
+  return {
+    staff_no: emp.id, name: emp.name, kana: emp.kana, facility: emp.facility, role: emp.role,
+    employment: emp.employment, status: emp.status, birthday: emp.birthday || null,
+    gender: emp.gender, join_date: emp.joinDate || null, address: emp.address, phone: emp.phone,
+    email: emp.email, emergency_name: emp.emergencyName, emergency_phone: emp.emergencyPhone,
+    notes: emp.notes, photo_url: emp.photo || null
+  };
+}
+
+async function loadEmployeesFromDb(){
+  const { data, error } = await supabaseClient.from('employees').select('*, employee_history(*)');
+  if(error){
+    alert('データの取得に失敗しました：' + error.message);
+    return;
+  }
+  employees = data.map(rowToEmployee);
+  renderList();
+}
+
+async function insertEmployeeToDb(emp){
+  const { data, error } = await supabaseClient.from('employees').insert(employeeToRow(emp)).select().single();
+  if(error){ alert('登録に失敗しました：' + error.message); return; }
+  emp.dbId = data.id;
+  if(emp.history && emp.history.length){
+    await supabaseClient.from('employee_history').insert(
+      emp.history.map(h => ({...h, employee_id: data.id}))
+    );
+  }
+}
+
+async function updateEmployeeInDb(emp){
+  if(!emp.dbId){ await insertEmployeeToDb(emp); return; }
+  const { error } = await supabaseClient.from('employees').update(employeeToRow(emp)).eq('id', emp.dbId);
+  if(error){ alert('更新に失敗しました：' + error.message); return; }
+  // 履歴は入れ替え方式（既存を削除して保存内容を入れ直す）
+  await supabaseClient.from('employee_history').delete().eq('employee_id', emp.dbId);
+  if(emp.history && emp.history.length){
+    await supabaseClient.from('employee_history').insert(
+      emp.history.map(h => ({...h, employee_id: emp.dbId}))
+    );
+  }
+}
+
+async function uploadPhotoToStorage(file, emp){
+  const path = `${emp.dbId || emp.id}/${Date.now()}_${file.name}`;
+  const { error: uploadError } = await supabaseClient.storage.from('staff-photos').upload(path, file, {upsert:true});
+  if(uploadError){ throw uploadError; }
+  const { data } = supabaseClient.storage.from('staff-photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function checkSession(){
+  const { data } = await supabaseClient.auth.getSession();
+  if(data.session){
+    await enterApp();
+  } else {
+    document.getElementById('login-overlay').style.display = 'flex';
+  }
+}
+
+async function enterApp(){
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('logout-btn').style.display = 'inline-block';
+  await loadEmployeesFromDb();
+}
+
+document.getElementById('login-btn').addEventListener('click', async ()=>{
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if(error){
+    errEl.textContent = 'ログインに失敗しました：' + error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  await enterApp();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  await supabaseClient.auth.signOut();
+  employees = [];
+  activeId = null;
+  renderList();
+  detailContent.innerHTML = '<div class="no-selection">左の一覧からスタッフを選択してください</div>';
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('login-overlay').style.display = 'flex';
+});
+
+// ================= 起動処理 =================
+initFacilityOptions();
+
+if(isSupabaseConfigured()){
+  checkSession();
+} else {
+  document.getElementById('demo-banner').style.display = 'block';
+  renderList();
+}
+
+if(isMobile()){
+  detailPane.classList.add('hide-on-mobile');
+}
+</script>
+</body>
+</html>
