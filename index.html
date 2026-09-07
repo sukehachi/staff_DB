@@ -500,7 +500,7 @@
 
 <header class="top">
   <div class="brand">
-    <h1>株式会社フォーグリーン　STAFF_DB</h1>
+    <h1>フォーグリーン スタッフDB</h1>
     <span id="facility-count-label">全10施設</span>
   </div>
   <div>
@@ -520,6 +520,9 @@
         <option value="active">在籍者のみ表示</option>
         <option value="all">全員表示（退職者含む）</option>
         <option value="retired">退職者のみ表示</option>
+      </select>
+      <select id="employment-filter">
+        <option value="all">全雇用区分を表示</option>
       </select>
       <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
       <div class="btn-row">
@@ -563,13 +566,7 @@
     </div>
     <div class="field"><label>役職</label><input id="m-role" placeholder="児童指導員 / サービス管理責任者 など"></div>
     <div class="field"><label>雇用区分</label>
-      <select id="m-employment">
-        <option>社員</option>
-        <option>パートドライバー</option>
-        <option>パート</option>
-        <option>ドライバー</option>
-        <option>常勤パート</option>
-      </select>
+      <select id="m-employment"></select>
     </div>
     <div class="field"><label>入社日</label><input id="m-join" type="date"></div>
     <div class="save-row">
@@ -596,7 +593,7 @@ const supabaseClient = isSupabaseConfigured()
   : null;
 
 // ---------- サンプルデータ（デモモード用のダミー値。クラウド接続時はDBの内容に置き換わります） ----------
-const FACILITIES = [
+const FIELD_FACILITIES = [
   "きたせんじゅステップ",
   "きたせんじゅステップ第2",
   "きたせんじゅステップ第3",
@@ -608,6 +605,12 @@ const FACILITIES = [
   "こいわステップ第3",
   "ほきまステップ"
 ];
+const HQ_FACILITIES = [
+  "本社"
+];
+const FACILITIES = [...FIELD_FACILITIES, ...HQ_FACILITIES];
+
+const EMPLOYMENT_TYPES = ['社員', 'パートドライバー', 'パート', 'ドライバー', '常勤パート'];
 
 let employees = [
   {
@@ -667,14 +670,22 @@ const listPane = document.getElementById('list-pane');
 const detailPane = document.getElementById('detail-pane');
 const backBtn = document.getElementById('back-btn');
 
+function buildFacilityOptionsHTML(selected){
+  const fieldOpts = FIELD_FACILITIES.map(f => `<option ${f===selected?'selected':''}>${f}</option>`).join('');
+  const hqOpts = HQ_FACILITIES.map(f => `<option ${f===selected?'selected':''}>${f}</option>`).join('');
+  return `<optgroup label="施設">${fieldOpts}</optgroup><optgroup label="本社">${hqOpts}</optgroup>`;
+}
+
 function initFacilityOptions(){
-  FACILITIES.forEach(f=>{
-    const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
-    facilityFilter.appendChild(o1);
-    const o2 = document.createElement('option'); o2.value=f; o2.textContent=f;
-    document.getElementById('m-facility').appendChild(o2);
-  });
-  document.getElementById('facility-count-label').textContent = `全${FACILITIES.length}施設`;
+  facilityFilter.insertAdjacentHTML('beforeend', buildFacilityOptionsHTML(null));
+  document.getElementById('m-facility').insertAdjacentHTML('beforeend', buildFacilityOptionsHTML(null));
+  document.getElementById('facility-count-label').textContent = `全${FIELD_FACILITIES.length}施設＋本社`;
+}
+
+function initEmploymentOptions(){
+  const opts = EMPLOYMENT_TYPES.map(t => `<option>${t}</option>`).join('');
+  document.getElementById('m-employment').insertAdjacentHTML('beforeend', opts);
+  document.getElementById('employment-filter').insertAdjacentHTML('beforeend', opts);
 }
 
 function isMobile(){ return window.innerWidth <= 820; }
@@ -683,6 +694,7 @@ function renderList(){
   const q = searchInput.value.trim();
   const fac = facilityFilter.value;
   const statusMode = document.getElementById('status-filter').value;
+  const empFilter = document.getElementById('employment-filter').value;
   listEl.innerHTML = '';
   const filtered = employees.filter(e=>{
     const matchesQ = !q || e.name.includes(q) || e.kana.includes(q) || e.facility.includes(q);
@@ -690,7 +702,8 @@ function renderList(){
     let matchesStatus = true;
     if(statusMode === 'active') matchesStatus = e.status !== '退職';
     else if(statusMode === 'retired') matchesStatus = e.status === '退職';
-    return matchesQ && matchesFac && matchesStatus;
+    const matchesEmployment = empFilter === 'all' || e.employment === empFilter;
+    return matchesQ && matchesFac && matchesStatus && matchesEmployment;
   });
   if(filtered.length === 0){
     listEl.innerHTML = '<li class="empty">該当するスタッフがいません</li>';
@@ -796,9 +809,9 @@ function renderDetail(){
 
     <div class="tab-panel ${activeTab==='work'?'active':''}" data-panel="work">
       <div class="field-grid">
-        ${selectField('所属施設', e, 'facility', FACILITIES)}
+        ${facilitySelectField('所属施設', e, 'facility')}
         ${field('役職', e, 'role')}
-        ${selectField('雇用区分', e, 'employment', ['社員','パートドライバー','パート','ドライバー','常勤パート'])}
+        ${selectField('雇用区分', e, 'employment', EMPLOYMENT_TYPES)}
         ${selectField('在籍状況', e, 'status', ['在籍中','休職中','産休・育休中','退職'])}
         ${field('入社日', e, 'joinDate', 'date')}
         ${derivedField('勤続年数', calcTenure(e.joinDate))}
@@ -963,7 +976,7 @@ function renderHistoryRows(e){
       return `<tr>
         <td><input type="date" data-hist-idx="${idx}" data-hist-field="date" value="${h.date||''}"></td>
         <td><select data-hist-idx="${idx}" data-hist-field="type">${['配属','異動','昇格','降格','退職'].map(t=>`<option ${t===h.type?'selected':''}>${t}</option>`).join('')}</select></td>
-        <td><select data-hist-idx="${idx}" data-hist-field="facility">${FACILITIES.map(f=>`<option ${f===h.facility?'selected':''}>${f}</option>`).join('')}</select></td>
+        <td><select data-hist-idx="${idx}" data-hist-field="facility">${buildFacilityOptionsHTML(h.facility)}</select></td>
         <td><input type="text" data-hist-idx="${idx}" data-hist-field="role" value="${h.role||''}"></td>
         <td><button class="hist-remove" data-hist-idx="${idx}">削除</button></td>
       </tr>`;
@@ -983,6 +996,13 @@ function selectField(label, obj, key, options){
   if(editing){
     const opts = options.map(o=>`<option ${o===obj[key]?'selected':''}>${o}</option>`).join('');
     return `<div class="field"><label>${label}</label><select data-field="${key}">${opts}</select></div>`;
+  }
+  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
+}
+
+function facilitySelectField(label, obj, key){
+  if(editing){
+    return `<div class="field"><label>${label}</label><select data-field="${key}">${buildFacilityOptionsHTML(obj[key])}</select></div>`;
   }
   return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
 }
@@ -1023,6 +1043,7 @@ function calcTenure(joinDate){
 searchInput.addEventListener('input', renderList);
 facilityFilter.addEventListener('change', renderList);
 document.getElementById('status-filter').addEventListener('change', renderList);
+document.getElementById('employment-filter').addEventListener('change', renderList);
 
 // --- 新規追加モーダル ---
 const modalBackdrop = document.getElementById('modal-backdrop');
@@ -1286,6 +1307,7 @@ document.getElementById('logout-btn').addEventListener('click', async ()=>{
 
 // ================= 起動処理 =================
 initFacilityOptions();
+initEmploymentOptions();
 
 if(isSupabaseConfigured()){
   checkSession();
