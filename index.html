@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Forgreen STAFF_DB</title>
+<title>スタッフ情報データベース</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,12 +24,17 @@
     --radius: 3px;
   }
   *{box-sizing:border-box;}
+  html, body{ height:100%; }
   body{
     margin:0;
     background:var(--bg);
     color:var(--ink);
     font-family:'Zen Kaku Gothic New', sans-serif;
     -webkit-font-smoothing:antialiased;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
   }
   h1,h2,h3,.serif{ font-family:'Zen Kaku Gothic New', sans-serif; }
 
@@ -40,6 +45,7 @@
     padding:14px 20px;
     background:var(--primary);
     color:#fff;
+    flex-shrink:0;
   }
   header.top .brand{
     display:flex;
@@ -69,7 +75,8 @@
   .layout{
     display:grid;
     grid-template-columns:320px 1fr;
-    min-height:calc(100vh - 54px);
+    flex:1;
+    min-height:0;
   }
   @media (max-width:820px){
     .layout{ grid-template-columns:1fr; }
@@ -82,6 +89,8 @@
     background:var(--panel);
     display:flex;
     flex-direction:column;
+    min-height:0;
+    overflow:hidden;
   }
   .list-pane .search-row{
     padding:14px;
@@ -89,6 +98,7 @@
     display:flex;
     flex-direction:column;
     gap:8px;
+    flex-shrink:0;
   }
   .list-pane input, .list-pane select{
     width:100%;
@@ -139,6 +149,8 @@
     margin:0;
     padding:0;
     overflow-y:auto;
+    flex:1;
+    min-height:0;
   }
   .emp-list li{
     padding:12px 14px;
@@ -171,6 +183,7 @@
   .detail-pane{
     padding:24px 28px 60px;
     overflow-y:auto;
+    min-height:0;
   }
   .detail-header{
     display:flex;
@@ -458,6 +471,7 @@
     font-size:12.5px;
     text-align:center;
     padding:6px 10px;
+    flex-shrink:0;
   }
   .logout-btn{
     background:none;
@@ -486,8 +500,8 @@
 
 <header class="top">
   <div class="brand">
-    <h1>Fogreen Staff_DB</h1>
-    <span id="facility-count-label">全10施設</span>
+    <h1>スタッフ情報データベース</h1>
+    <span id="facility-count-label">全9施設</span>
   </div>
   <div>
     <select id="facility-filter">
@@ -578,16 +592,15 @@ const supabaseClient = isSupabaseConfigured()
 
 // ---------- サンプルデータ（デモモード用のダミー値。クラウド接続時はDBの内容に置き換わります） ----------
 const FACILITIES = [
-  "きたせんじゅステップ",
-  "きたせんじゅステップ第2",
-  "きたせんじゅステップ第3",
-  "きたせんじゅステップ第4",
-  "きたせんじゅステップ第5",
-  "おだいステップ",
-  "こいわステップ",
-  "こいわステップ第2",
-  "こいわステップ第3",
-  "ほきまステップ",
+  "きたせんじゅ 第1",
+  "きたせんじゅ 第2",
+  "きたせんじゅ 第3",
+  "きたせんじゅ 第4",
+  "きたせんじゅ 第5",
+  "おだい 第1",
+  "こいわ 第1",
+  "こいわ 第2",
+  "こいわ 第3"
 ];
 
 let employees = [
