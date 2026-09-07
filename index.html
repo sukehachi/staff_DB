@@ -205,6 +205,19 @@
   }
   @media (max-width:820px){
     .back-btn.show{ display:block; }
+    .detail-pane{ padding-bottom:90px; }
+    .save-row{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      margin-top:0;
+      padding:12px 16px;
+      background:var(--panel);
+      border-top:1px solid var(--line);
+      box-shadow:0 -4px 10px rgba(0,0,0,0.08);
+      z-index:50;
+    }
   }
   .photo-box{
     position:relative;
@@ -373,6 +386,7 @@
 
   .save-row{
     margin-top:28px;
+    padding:0;
     display:flex;
     gap:10px;
   }
@@ -500,8 +514,8 @@
 
 <header class="top">
   <div class="brand">
-    <h1>フォーグリーン スタッフDB</h1>
-    <span id="facility-count-label">全10施設</span>
+    <h1>スタッフ情報データベース</h1>
+    <span id="facility-count-label">全9施設</span>
   </div>
   <div>
     <select id="facility-filter">
@@ -594,23 +608,22 @@ const supabaseClient = isSupabaseConfigured()
 
 // ---------- サンプルデータ（デモモード用のダミー値。クラウド接続時はDBの内容に置き換わります） ----------
 const FIELD_FACILITIES = [
-  "きたせんじゅステップ",
-  "きたせんじゅステップ第2",
-  "きたせんじゅステップ第3",
-  "きたせんじゅステップ第4",
-  "きたせんじゅステップ第5",
-  "おだいステップ",
-  "こいわステップ",
-  "こいわステップ第2",
-  "こいわステップ第3",
-  "ほきまステップ"
+  "きたせんじゅ 第1",
+  "きたせんじゅ 第2",
+  "きたせんじゅ 第3",
+  "きたせんじゅ 第4",
+  "きたせんじゅ 第5",
+  "おだい 第1",
+  "こいわ 第1",
+  "こいわ 第2",
+  "こいわ 第3"
 ];
 const HQ_FACILITIES = [
   "本社"
 ];
 const FACILITIES = [...FIELD_FACILITIES, ...HQ_FACILITIES];
 
-const EMPLOYMENT_TYPES = ['社員', '常勤パート', 'パート', 'パートドライバー'];
+const EMPLOYMENT_TYPES = ['役員', '社員', '常勤パート', 'パート', 'パートドライバー'];
 
 let employees = [
   {
@@ -800,7 +813,7 @@ function renderDetail(){
       <div class="field-grid">
         ${field('生年月日', e, 'birthday', 'date')}
         ${derivedField('年齢', calcAge(e.birthday))}
-        ${field('性別', e, 'gender')}
+        ${selectField('性別', e, 'gender', ['男性','女性'])}
         ${field('住所', e, 'address')}
         ${field('電話番号', e, 'phone')}
         ${field('メールアドレス', e, 'email')}
@@ -814,7 +827,8 @@ function renderDetail(){
         ${selectField('雇用区分', e, 'employment', EMPLOYMENT_TYPES)}
         ${selectField('在籍状況', e, 'status', ['在籍中','休職中','産休・育休中','退職'])}
         ${field('入社日', e, 'joinDate', 'date')}
-        ${derivedField('勤続年数', calcTenure(e.joinDate))}
+        ${field('退職日', e, 'resignDate', 'date')}
+        ${derivedField('勤続年数', calcTenure(e.joinDate, e.resignDate))}
       </div>
       <div class="field-grid span-2" style="margin-top:20px;">
         ${field('資格・研修等の備考', e, 'notes')}
@@ -1024,14 +1038,18 @@ function calcAge(birthday){
   return age + '歳';
 }
 
-function calcTenure(joinDate){
+function calcTenure(joinDate, resignDate){
   if(!joinDate) return '—';
   const j = new Date(joinDate);
   if(isNaN(j)) return '—';
-  const today = new Date();
-  let years = today.getFullYear() - j.getFullYear();
-  let months = today.getMonth() - j.getMonth();
-  if(today.getDate() < j.getDate()) months--;
+  let end = new Date();
+  if(resignDate){
+    const r = new Date(resignDate);
+    if(!isNaN(r)) end = r;
+  }
+  let years = end.getFullYear() - j.getFullYear();
+  let months = end.getMonth() - j.getMonth();
+  if(end.getDate() < j.getDate()) months--;
   if(months < 0){ years--; months += 12; }
   if(years <= 0 && months <= 0) return '1ヶ月未満';
   const parts = [];
@@ -1065,7 +1083,7 @@ document.getElementById('m-save').addEventListener('click', async ()=>{
     role: document.getElementById('m-role').value.trim(),
     employment: document.getElementById('m-employment').value,
     status: '在籍中',
-    birthday: '', gender: '', joinDate: document.getElementById('m-join').value,
+    birthday: '', gender: '', joinDate: document.getElementById('m-join').value, resignDate: '',
     address: '', phone: '', email: '',
     emergencyName: '', emergencyPhone: '', notes: '',
     history: [{ date: document.getElementById('m-join').value, type: '配属', facility: document.getElementById('m-facility').value || FACILITIES[0], role: document.getElementById('m-role').value.trim() }]
@@ -1083,14 +1101,14 @@ document.getElementById('m-save').addEventListener('click', async ()=>{
 // ---------- Excelテンプレート ダウンロード / 取込 ----------
 const TEMPLATE_HEADERS = [
   "氏名","フリガナ","職員番号","所属施設","役職","雇用区分","在籍状況",
-  "生年月日","性別","入社日","住所","電話番号","メールアドレス",
+  "生年月日","性別","入社日","退職日","住所","電話番号","メールアドレス",
   "緊急連絡先氏名","緊急連絡先電話番号","備考"
 ];
 
 const HEADER_TO_KEY = {
   "氏名":"name", "フリガナ":"kana", "職員番号":"id", "所属施設":"facility",
   "役職":"role", "雇用区分":"employment", "在籍状況":"status",
-  "生年月日":"birthday", "性別":"gender", "入社日":"joinDate",
+  "生年月日":"birthday", "性別":"gender", "入社日":"joinDate", "退職日":"resignDate",
   "住所":"address", "電話番号":"phone", "メールアドレス":"email",
   "緊急連絡先氏名":"emergencyName", "緊急連絡先電話番号":"emergencyPhone", "備考":"notes"
 };
@@ -1134,13 +1152,13 @@ document.getElementById('excel-input').addEventListener('change', async (evt)=>{
       rows.forEach(row=>{
         const emp = {
           id:'', name:'', kana:'', facility: FACILITIES[0], role:'', employment:'正社員',
-          status:'在籍中', birthday:'', gender:'', joinDate:'', address:'', phone:'',
+          status:'在籍中', birthday:'', gender:'', joinDate:'', resignDate:'', address:'', phone:'',
           email:'', emergencyName:'', emergencyPhone:'', notes:'', history:[]
         };
         Object.entries(row).forEach(([header, value])=>{
           const key = HEADER_TO_KEY[header.trim()];
           if(!key) return;
-          if(key === 'birthday' || key === 'joinDate'){
+          if(key === 'birthday' || key === 'joinDate' || key === 'resignDate'){
             emp[key] = excelDateToStr(value);
           } else {
             emp[key] = String(value ?? '').trim();
@@ -1182,7 +1200,8 @@ function rowToEmployee(row){
     dbId: row.id,
     name: row.name, kana: row.kana, facility: row.facility, role: row.role,
     employment: row.employment, status: row.status, birthday: row.birthday || '',
-    gender: row.gender || '', joinDate: row.join_date || '', address: row.address || '',
+    gender: row.gender || '', joinDate: row.join_date || '', resignDate: row.resign_date || '',
+    address: row.address || '',
     phone: row.phone || '', email: row.email || '', emergencyName: row.emergency_name || '',
     emergencyPhone: row.emergency_phone || '', notes: row.notes || '', photo: row.photo_url || null,
     history: (row.employee_history || []).map(h => ({date: h.date, type: h.type, facility: h.facility, role: h.role}))
@@ -1193,7 +1212,8 @@ function employeeToRow(emp){
   return {
     staff_no: emp.id, name: emp.name, kana: emp.kana, facility: emp.facility, role: emp.role,
     employment: emp.employment, status: emp.status, birthday: emp.birthday || null,
-    gender: emp.gender, join_date: emp.joinDate || null, address: emp.address, phone: emp.phone,
+    gender: emp.gender, join_date: emp.joinDate || null, resign_date: emp.resignDate || null,
+    address: emp.address, phone: emp.phone,
     email: emp.email, emergency_name: emp.emergencyName, emergency_phone: emp.emergencyPhone,
     notes: emp.notes, photo_url: emp.photo || null
   };
