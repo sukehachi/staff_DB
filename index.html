@@ -100,7 +100,7 @@
     gap:8px;
     flex-shrink:0;
   }
-  .list-pane input, .list-pane select{
+  .list-pane input:not([type="checkbox"]), .list-pane select{
     width:100%;
     padding:9px 10px;
     border:1px solid var(--line);
@@ -109,7 +109,7 @@
     font-family:inherit;
     background:#fff;
   }
-  .list-pane input:focus, .list-pane select:focus{
+  .list-pane input:not([type="checkbox"]):focus, .list-pane select:focus{
     outline:2px solid var(--accent);
     outline-offset:-1px;
   }
@@ -500,8 +500,8 @@
 
 <header class="top">
   <div class="brand">
-    <h1>スタッフ情報データベース</h1>
-    <span id="facility-count-label">全9施設</span>
+    <h1>株式会社フォーグリーン　STAFF_DB</h1>
+    <span id="facility-count-label">全10施設</span>
   </div>
   <div>
     <select id="facility-filter">
@@ -516,6 +516,11 @@
   <aside class="list-pane" id="list-pane">
     <div class="search-row">
       <input type="text" id="search-input" placeholder="氏名・フリガナ・施設名で検索">
+      <select id="status-filter">
+        <option value="active">在籍者のみ表示</option>
+        <option value="all">全員表示（退職者含む）</option>
+        <option value="retired">退職者のみ表示</option>
+      </select>
       <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
       <div class="btn-row">
         <button class="secondary-btn" id="download-template">テンプレートDL</button>
@@ -677,11 +682,15 @@ function isMobile(){ return window.innerWidth <= 820; }
 function renderList(){
   const q = searchInput.value.trim();
   const fac = facilityFilter.value;
+  const statusMode = document.getElementById('status-filter').value;
   listEl.innerHTML = '';
   const filtered = employees.filter(e=>{
     const matchesQ = !q || e.name.includes(q) || e.kana.includes(q) || e.facility.includes(q);
     const matchesFac = fac === 'all' || e.facility === fac;
-    return matchesQ && matchesFac;
+    let matchesStatus = true;
+    if(statusMode === 'active') matchesStatus = e.status !== '退職';
+    else if(statusMode === 'retired') matchesStatus = e.status === '退職';
+    return matchesQ && matchesFac && matchesStatus;
   });
   if(filtered.length === 0){
     listEl.innerHTML = '<li class="empty">該当するスタッフがいません</li>';
@@ -1013,6 +1022,7 @@ function calcTenure(joinDate){
 
 searchInput.addEventListener('input', renderList);
 facilityFilter.addEventListener('change', renderList);
+document.getElementById('status-filter').addEventListener('change', renderList);
 
 // --- 新規追加モーダル ---
 const modalBackdrop = document.getElementById('modal-backdrop');
