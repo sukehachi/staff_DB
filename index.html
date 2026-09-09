@@ -845,7 +845,7 @@ function renderList(){
 function selectEmployee(id){
   activeId = id;
   editing = false;
-  activeTab = 'basic';
+  activeTab = (currentUserRole === 'viewer_basic') ? 'work' : 'basic';
   tempHistory = null;
   tempPhoto = null;
   pendingPhotoFile = null;
@@ -906,25 +906,23 @@ function renderDetail(){
     </div>
 
     <div class="tabs">
-      <button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>
+      ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>` : ''}
       <button class="tab-btn ${activeTab==='work'?'active':''}" data-tab="work">所属・勤務情報</button>
       ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='emergency'?'active':''}" data-tab="emergency">緊急連絡先</button>` : ''}
     </div>
 
+    ${currentUserRole !== 'viewer_basic' ? `
     <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
       <div class="field-grid">
-        ${currentUserRole !== 'viewer_basic' ? `
         ${field('生年月日', e, 'birthday', 'date')}
         ${derivedField('年齢', calcAge(e.birthday))}
         ${selectField('性別', e, 'gender', ['男性','女性'])}
         ${field('住所', e, 'address')}
         ${field('電話番号', e, 'phone')}
         ${field('メールアドレス', e, 'email')}
-        ${field('資格', e, 'qualification')}
-        ` : ''}
-        ${selectField('運転免許', e, 'hasLicense', ['有','無'])}
       </div>
     </div>
+    ` : ''}
 
     <div class="tab-panel ${activeTab==='work'?'active':''}" data-panel="work">
       <div class="field-grid">
@@ -935,6 +933,8 @@ function renderDetail(){
         ${field('入社日', e, 'joinDate', 'date')}
         ${e.status === '退職' ? field('退職日', e, 'resignDate', 'date') : ''}
         ${derivedField('勤続年数', calcTenure(e.joinDate, e.resignDate))}
+        ${field('資格', e, 'qualification')}
+        ${selectField('運転免許', e, 'hasLicense', ['有','無'])}
       </div>
       ${currentUserRole !== 'viewer_basic' ? `
       <div class="field-grid span-2" style="margin-top:20px;">
