@@ -908,11 +908,12 @@ function renderDetail(){
     <div class="tabs">
       <button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>
       <button class="tab-btn ${activeTab==='work'?'active':''}" data-tab="work">所属・勤務情報</button>
-      <button class="tab-btn ${activeTab==='emergency'?'active':''}" data-tab="emergency">緊急連絡先</button>
+      ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='emergency'?'active':''}" data-tab="emergency">緊急連絡先</button>` : ''}
     </div>
 
     <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
       <div class="field-grid">
+        ${currentUserRole !== 'viewer_basic' ? `
         ${field('生年月日', e, 'birthday', 'date')}
         ${derivedField('年齢', calcAge(e.birthday))}
         ${selectField('性別', e, 'gender', ['男性','女性'])}
@@ -920,6 +921,7 @@ function renderDetail(){
         ${field('電話番号', e, 'phone')}
         ${field('メールアドレス', e, 'email')}
         ${field('資格', e, 'qualification')}
+        ` : ''}
         ${selectField('運転免許', e, 'hasLicense', ['有','無'])}
       </div>
     </div>
@@ -934,9 +936,11 @@ function renderDetail(){
         ${e.status === '退職' ? field('退職日', e, 'resignDate', 'date') : ''}
         ${derivedField('勤続年数', calcTenure(e.joinDate, e.resignDate))}
       </div>
+      ${currentUserRole !== 'viewer_basic' ? `
       <div class="field-grid span-2" style="margin-top:20px;">
         ${field('資格・研修等の備考', e, 'notes')}
       </div>
+      ` : ''}
       <div style="margin-top:28px;">
         <p class="hist-title">所属・異動履歴</p>
         <table class="hist-table">
@@ -951,12 +955,14 @@ function renderDetail(){
       </div>
     </div>
 
+    ${currentUserRole !== 'viewer_basic' ? `
     <div class="tab-panel ${activeTab==='emergency'?'active':''}" data-panel="emergency">
       <div class="field-grid">
         ${field('緊急連絡先氏名', e, 'emergencyName')}
         ${field('緊急連絡先電話番号', e, 'emergencyPhone')}
       </div>
     </div>
+    ` : ''}
 
     ${editing ? `
     <div class="save-row">
@@ -1306,7 +1312,7 @@ document.getElementById('excel-input').addEventListener('change', async (evt)=>{
 
 // ================= クラウド連携（Supabase） =================
 
-function rowToEmployee(row){
+function rowToEmployee(row, historyRows){
   return {
     id: row.staff_no || row.id,
     dbId: row.id,
@@ -1317,7 +1323,7 @@ function rowToEmployee(row){
     address: row.address || '',
     phone: row.phone || '', email: row.email || '', emergencyName: row.emergency_name || '',
     emergencyPhone: row.emergency_phone || '', notes: row.notes || '', photo: row.photo_url || null,
-    history: (row.employee_history || []).map(h => ({date: h.date, type: h.type, facility: h.facility, role: h.role}))
+    history: (historyRows || []).map(h => ({date: h.date, type: h.type, facility: h.facility, role: h.role}))
   };
 }
 
@@ -1334,12 +1340,23 @@ function employeeToRow(emp){
 }
 
 async function loadEmployeesFromDb(){
-  const { data, error } = await supabaseClient.from('employees').select('*, employee_history(*)');
+  const viewName = (currentUserRole === 'viewer_basic') ? 'employees_basic' : 'employees_full';
+  const { data, error } = await supabaseClient.from(viewName).select('*');
   if(error){
     alert('データの取得に失敗しました：' + error.message);
     return;
   }
-  employees = data.map(rowToEmployee);
+
+  const { data: historyData, error: histError } = await supabaseClient.from('employee_history_shared').select('*');
+  const historyByEmployeeId = {};
+  if(!histError && historyData){
+    historyData.forEach(h=>{
+      if(!historyByEmployeeId[h.employee_id]) historyByEmployeeId[h.employee_id] = [];
+      historyByEmployeeId[h.employee_id].push(h);
+    });
+  }
+
+  employees = data.map(row => rowToEmployee(row, historyByEmployeeId[row.id]));
   renderList();
 }
 
@@ -1394,23 +1411,29 @@ async function enterApp(){
 async function loadCurrentUserRole(){
   const { data: userData } = await supabaseClient.auth.getUser();
   const uid = userData?.user?.id;
-  if(!uid){ currentUserRole = 'viewer'; }
+  if(!uid){ currentUserRole = 'viewer_basic'; }
   else {
     const { data, error } = await supabaseClient
       .from('user_roles')
       .select('role')
       .eq('user_id', uid)
       .single();
-    currentUserRole = (!error && data) ? data.role : 'viewer';
+    currentUserRole = (!error && data) ? data.role : 'viewer_basic';
   }
   applyRolePermissions();
 }
+
+const ROLE_LABELS = {
+  editor: '編集可能',
+  viewer_full: '閲覧者（詳細情報）',
+  viewer_basic: '閲覧者（基本情報のみ）'
+};
 
 function applyRolePermissions(){
   const isEditor = currentUserRole === 'editor';
   const badge = document.getElementById('role-badge');
   badge.style.display = 'inline-block';
-  badge.textContent = isEditor ? '編集可能' : '閲覧のみ';
+  badge.textContent = ROLE_LABELS[currentUserRole] || '閲覧のみ';
   document.getElementById('open-add-modal').style.display = isEditor ? '' : 'none';
   document.getElementById('open-import').style.display = isEditor ? '' : 'none';
   document.getElementById('download-template').style.display = isEditor ? '' : 'none';
