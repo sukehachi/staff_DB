@@ -1152,6 +1152,30 @@ function derivedField(label, value){
   return `<div class="field"><label>${label}</label><div class="value">${value}</div></div>`;
 }
 
+// 既存の職員番号とぶつからない、次の番号を採番する
+// （既に使われている番号の最大値+1 を使うので、削除や取込があっても重複しない）
+function nextStaffNo(extraTaken){
+  const taken = new Set(employees.map(e => e.id));
+  if(extraTaken) extraTaken.forEach(v => taken.add(v));
+
+  let max = 0;
+  taken.forEach(id=>{
+    const m = /^S(\d+)$/.exec(String(id || ''));
+    if(m){
+      const n = parseInt(m[1], 10);
+      if(n > max) max = n;
+    }
+  });
+
+  let n = max + 1;
+  let candidate = 'S' + String(n).padStart(5, '0');
+  while(taken.has(candidate)){
+    n++;
+    candidate = 'S' + String(n).padStart(5, '0');
+  }
+  return candidate;
+}
+
 function isNewHire(joinDate){
   if(!joinDate) return false;
   const j = new Date(joinDate);
@@ -1210,7 +1234,7 @@ document.getElementById('m-cancel').addEventListener('click', ()=>{
 document.getElementById('m-save').addEventListener('click', async ()=>{
   const name = document.getElementById('m-name').value.trim();
   if(!name){ alert('氏名を入力してください'); return; }
-  const newId = 'S' + String(10000 + employees.length + Math.floor(Math.random()*89)).slice(-5);
+  const newId = nextStaffNo();
   const facility = document.getElementById('m-facility').value || FACILITIES[0];
   const role = document.getElementById('m-role').value.trim();
   const joinDate = document.getElementById('m-join').value;
@@ -1376,10 +1400,11 @@ document.getElementById('excel-input').addEventListener('change', async (evt)=>{
       const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
 
       let importedCount = 0;
+      let skippedCount = 0;
       const newlyImported = [];
       rows.forEach(row=>{
         const emp = {
-          id:'', name:'', kana:'', facility: FACILITIES[0], role:'', employment:'正社員',
+          id:'', name:'', kana:'', facility: FACILITIES[0], role:'', employment:'社員',
           status:'在籍中', birthday:'', gender:'', joinDate:'', resignDate:'', qualification:'', hasLicense:'無', address:'', phone:'',
           email:'', emergencyName:'', emergencyPhone:'', notes:'', history:[]
         };
@@ -1393,9 +1418,17 @@ document.getElementById('excel-input').addEventListener('change', async (evt)=>{
           }
         });
         if(!emp.name) return; // 氏名が無い行はスキップ
-        if(!emp.id){
-          emp.id = 'S' + String(10000 + employees.length + importedCount + Math.floor(Math.random()*89)).slice(-5);
+
+        if(emp.id){
+          // 既に同じ職員番号が登録済みなら二重登録になるので取り込まない
+          if(employees.some(x => x.id === emp.id)){
+            skippedCount++;
+            return;
+          }
+        } else {
+          emp.id = nextStaffNo();
         }
+
         employees.push(emp);
         newlyImported.push(emp);
         importedCount++;
@@ -1409,7 +1442,11 @@ document.getElementById('excel-input').addEventListener('change', async (evt)=>{
         }
       }
 
-      alert(`${importedCount}件のスタッフ情報を取り込みました。`);
+      let msg = `${importedCount}件のスタッフ情報を取り込みました。`;
+      if(skippedCount > 0){
+        msg += `\n${skippedCount}件は既に同じ職員番号が登録されているため、取り込みませんでした。`;
+      }
+      alert(msg);
     } catch(err){
       alert('ファイルの読み込みに失敗しました。テンプレートの列見出しと一致しているかご確認ください。');
       console.error(err);
