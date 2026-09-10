@@ -653,13 +653,28 @@
     <h3 class="serif">スタッフ新規登録</h3>
     <div class="field"><label>氏名</label><input id="m-name" placeholder="山田 太郎"></div>
     <div class="field"><label>フリガナ</label><input id="m-kana" placeholder="ヤマダ タロウ"></div>
+    <div class="field"><label>生年月日</label><input id="m-birthday" type="date"></div>
+    <div class="field"><label>性別</label>
+      <select id="m-gender">
+        <option value="">未選択</option>
+        <option>男性</option>
+        <option>女性</option>
+      </select>
+    </div>
     <div class="field">
       <label>所属施設</label>
       <select id="m-facility"></select>
     </div>
-    <div class="field"><label>役職</label><input id="m-role" placeholder="児童指導員 / サービス管理責任者 など"></div>
+    <div class="field"><label>役職</label><input id="m-role" placeholder="常務 / 専務 / 部長 / 主任 など"></div>
     <div class="field"><label>雇用区分</label>
       <select id="m-employment"></select>
+    </div>
+    <div class="field"><label>資格</label><input id="m-qualification" placeholder="児童指導員 / 保育士 / 社会福祉士 など"></div>
+    <div class="field"><label>運転免許</label>
+      <select id="m-license">
+        <option>無</option>
+        <option>有</option>
+      </select>
     </div>
     <div class="field"><label>入社日</label><input id="m-join" type="date"></div>
     <div class="save-row">
@@ -1196,23 +1211,34 @@ document.getElementById('m-save').addEventListener('click', async ()=>{
   const name = document.getElementById('m-name').value.trim();
   if(!name){ alert('氏名を入力してください'); return; }
   const newId = 'S' + String(10000 + employees.length + Math.floor(Math.random()*89)).slice(-5);
+  const facility = document.getElementById('m-facility').value || FACILITIES[0];
+  const role = document.getElementById('m-role').value.trim();
+  const joinDate = document.getElementById('m-join').value;
   const newEmp = {
     id: newId,
     name,
     kana: document.getElementById('m-kana').value.trim(),
-    facility: document.getElementById('m-facility').value || FACILITIES[0],
-    role: document.getElementById('m-role').value.trim(),
+    facility,
+    role,
     employment: document.getElementById('m-employment').value,
     status: '在籍中',
-    birthday: '', gender: '', joinDate: document.getElementById('m-join').value, resignDate: '',
-    qualification: '', hasLicense: '無',
+    birthday: document.getElementById('m-birthday').value,
+    gender: document.getElementById('m-gender').value,
+    joinDate,
+    resignDate: '',
+    qualification: document.getElementById('m-qualification').value.trim(),
+    hasLicense: document.getElementById('m-license').value,
     address: '', phone: '', email: '',
     emergencyName: '', emergencyPhone: '', notes: '',
-    history: [{ date: document.getElementById('m-join').value, type: '配属', facility: document.getElementById('m-facility').value || FACILITIES[0], role: document.getElementById('m-role').value.trim() }]
+    history: [{ date: joinDate, type: '配属', facility, role }]
   };
   employees.push(newEmp);
   modalBackdrop.style.display = 'none';
-  ['m-name','m-kana','m-role','m-join'].forEach(id=>document.getElementById(id).value='');
+  ['m-name','m-kana','m-role','m-join','m-birthday','m-qualification']
+    .forEach(id=>document.getElementById(id).value='');
+  document.getElementById('m-gender').value = '';
+  document.getElementById('m-license').value = '無';
+  document.getElementById('m-employment').value = '社員';
   renderList();
   selectEmployee(newId);
   if(isSupabaseConfigured()){
