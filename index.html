@@ -1465,15 +1465,22 @@ async function insertEmployeeToDb(emp){
 
 async function updateEmployeeInDb(emp){
   if(!emp.dbId){ await insertEmployeeToDb(emp); return; }
-  const { error } = await supabaseClient.from('employees').update(employeeToRow(emp)).eq('id', emp.dbId);
+
+  // UPDATE / DELETE は対象行を探すためにテーブルのSELECT権限を要求する。
+  // 列単位の制御のためSELECTを外しているので、専用の関数（security definer）経由で更新する。
+  const { error } = await supabaseClient.rpc('update_employee', {
+    p_id: emp.dbId,
+    p_data: employeeToRow(emp)
+  });
   if(error){ alert('更新に失敗しました：' + error.message); return; }
-  // 履歴は入れ替え方式（既存を削除して保存内容を入れ直す）
-  await supabaseClient.from('employee_history').delete().eq('employee_id', emp.dbId);
-  if(emp.history && emp.history.length){
-    await supabaseClient.from('employee_history').insert(
-      emp.history.map(h => ({...h, employee_id: emp.dbId}))
-    );
-  }
+
+  const { error: histError } = await supabaseClient.rpc('replace_employee_history', {
+    p_employee_id: emp.dbId,
+    p_history: (emp.history || []).map(h => ({
+      date: h.date || '', type: h.type || '', facility: h.facility || '', role: h.role || ''
+    }))
+  });
+  if(histError){ alert('異動履歴の更新に失敗しました：' + histError.message); }
 }
 
 async function uploadPhotoToStorage(file, emp){
