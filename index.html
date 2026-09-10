@@ -1445,12 +1445,20 @@ async function loadEmployeesFromDb(){
 }
 
 async function insertEmployeeToDb(emp){
-  const { data, error } = await supabaseClient.from('employees').insert(employeeToRow(emp)).select().single();
+  // 行のIDはこちらで発行する。
+  // （挿入後に .select() で読み返すと employees テーブルへのSELECT権限が必要になり、
+  //  列単位の制御のために権限を外している構成では 42501 エラーになるため）
+  const newId = (crypto.randomUUID) ? crypto.randomUUID() : null;
+  const payload = employeeToRow(emp);
+  if(newId) payload.id = newId;
+
+  const { error } = await supabaseClient.from('employees').insert(payload);
   if(error){ alert('登録に失敗しました：' + error.message); return; }
-  emp.dbId = data.id;
-  if(emp.history && emp.history.length){
+
+  emp.dbId = newId;
+  if(newId && emp.history && emp.history.length){
     await supabaseClient.from('employee_history').insert(
-      emp.history.map(h => ({...h, employee_id: data.id}))
+      emp.history.map(h => ({...h, employee_id: newId}))
     );
   }
 }
