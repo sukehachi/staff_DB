@@ -593,6 +593,7 @@
     <select id="facility-filter">
       <option value="all">全施設を表示</option>
     </select>
+    <button class="logout-btn" id="export-work-format" title="施設ごとに在籍者一覧をExcelで出力します（簡易版）">勤務形態一覧を出力</button>
     <span id="role-badge" class="logout-btn" style="display:none; cursor:default;"></span>
     <button class="logout-btn" id="logout-btn" style="display:none;">ログアウト</button>
   </div>
@@ -619,6 +620,7 @@
         <button class="secondary-btn" id="download-template">テンプレートDL</button>
         <button class="secondary-btn" id="open-import">Excelから取込</button>
       </div>
+      <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
       <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
       <div class="import-note">テンプレートの列見出しに合わせて入力したExcelファイルを取り込めます。既存データに追加されます。</div>
     </div>
@@ -724,40 +726,43 @@ const EMPLOYMENT_TYPES = ['役員', '社員', '常勤パート', 'パート', '�
 let employees = [
   {
     id: "S00142", name: "佐藤 美咲", kana: "サトウ ミサキ",
-    facility: "西新井本部", role: "サービス管理責任者", employment: "正社員",
+    facility: "きたせんじゅステップ", role: "サービス管理責任者", employment: "社員",
     status: "在籍中", birthday: "1990-04-12", gender: "女性",
     joinDate: "2019-06-01", address: "東京都足立区西新井本町2-3-1",
     phone: "090-1234-5678", email: "sato@example.com",
+    qualification: "児童発達支援管理責任者", hasLicense: "有", resignDate: '',
     emergencyName: "佐藤 健一（配偶者）", emergencyPhone: "090-8765-4321",
     notes: "児童発達支援管理責任者研修 修了（2021年）",
     history: [
-      { date:"2019-06-01", type:"配属", facility:"西新井本部", role:"児童指導員" },
-      { date:"2021-04-01", type:"昇格", facility:"西新井本部", role:"サービス管理責任者" }
+      { date:"2019-06-01", type:"配属", facility:"きたせんじゅステップ", role:"児童指導員" },
+      { date:"2021-04-01", type:"昇格", facility:"きたせんじゅステップ", role:"サービス管理責任者" }
     ]
   },
   {
     id: "S00187", name: "中村 拓也", kana: "ナカムラ タクヤ",
-    facility: "竹の塚ステップ", role: "児童指導員", employment: "正社員",
+    facility: "こいわステップ", role: "児童指導員", employment: "社員",
     status: "在籍中", birthday: "1993-11-02", gender: "男性",
     joinDate: "2022-04-01", address: "東京都足立区竹の塚4-1-9",
     phone: "080-2222-3333", email: "nakamura@example.com",
+    qualification: "", hasLicense: "有", resignDate: '',
     emergencyName: "中村 恵子（母）", emergencyPhone: "080-4444-5555",
     notes: "",
     history: [
-      { date:"2022-04-01", type:"配属", facility:"梅島LC", role:"児童指導員" },
-      { date:"2023-10-01", type:"異動", facility:"竹の塚ステップ", role:"児童指導員" }
+      { date:"2022-04-01", type:"配属", facility:"おだいステップ", role:"児童指導員" },
+      { date:"2023-10-01", type:"異動", facility:"こいわステップ", role:"児童指導員" }
     ]
   },
   {
     id: "S00203", name: "田中 陽菜", kana: "タナカ ヒナ",
-    facility: "梅島LC", role: "保育士", employment: "パート・アルバイト",
+    facility: "おだいステップ", role: "保育士", employment: "パート",
     status: "産休・育休中", birthday: "1997-02-20", gender: "女性",
     joinDate: "2023-09-01", address: "東京都足立区梅島1-5-2",
     phone: "070-1111-2222", email: "tanaka@example.com",
+    qualification: "保育士", hasLicense: "無", resignDate: '',
     emergencyName: "田中 大輔（配偶者）", emergencyPhone: "070-3333-4444",
     notes: "",
     history: [
-      { date:"2023-09-01", type:"配属", facility:"梅島LC", role:"保育士" }
+      { date:"2023-09-01", type:"配属", facility:"おだいステップ", role:"保育士" }
     ]
   }
 ];
@@ -896,7 +901,7 @@ function renderDetail(){
         <h2 class="serif">${e.name}</h2>
         <span class="kana">${e.kana}　/　職員番号：${e.id}</span>
         <div class="badge-row">
-          <span class="badge role">${e.role}</span>
+          ${e.role ? `<span class="badge role">${e.role}</span>` : ''}
           <span class="badge">${e.employment}</span>
           <span class="badge ${statusBadgeClass(e.status)}">${e.status}</span>
           ${isNewHire(e.joinDate) ? '<span class="new-badge" style="padding:3px 9px; font-size:11px;">NEW</span>' : ''}
@@ -1250,6 +1255,85 @@ document.getElementById('download-template').addEventListener('click', ()=>{
   XLSX.writeFile(wb, "スタッフ情報_取込テンプレート.xlsx");
 });
 
+// 常勤/非常勤の簡易判定（雇用区分ベース）
+const FULLTIME_EMPLOYMENTS = ['役員', '社員', '常勤パート'];
+function kinmuKubun(employment){
+  return FULLTIME_EMPLOYMENTS.includes(employment) ? '常勤' : '非常勤';
+}
+
+// 全データを取込テンプレートと同じ列構成で書き出す
+document.getElementById('export-all').addEventListener('click', ()=>{
+  if(employees.length === 0){
+    alert('書き出すデータがありません。');
+    return;
+  }
+
+  const KEY_ORDER = [
+    'name','kana','id','facility','role','employment','status',
+    'birthday','gender','joinDate','resignDate','qualification','hasLicense',
+    'address','phone','email','emergencyName','emergencyPhone','notes'
+  ];
+
+  const rows = employees.map(e => KEY_ORDER.map(k => e[k] ?? ''));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...rows]);
+  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
+  XLSX.utils.book_append_sheet(wb, ws, "スタッフ一覧");
+
+  // 異動履歴は別シートに出す
+  const histRows = [];
+  employees.forEach(e=>{
+    (e.history || []).forEach(h=>{
+      histRows.push([e.id, e.name, h.date || '', h.type || '', h.facility || '', h.role || '']);
+    });
+  });
+  if(histRows.length > 0){
+    const hws = XLSX.utils.aoa_to_sheet([
+      ['職員番号','氏名','年月日','異動区分','所属施設','役職'],
+      ...histRows
+    ]);
+    hws['!cols'] = [{wch:12},{wch:14},{wch:12},{wch:10},{wch:20},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, hws, "異動履歴");
+  }
+
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `スタッフ一覧_${today}.xlsx`);
+});
+
+document.getElementById('export-work-format').addEventListener('click', ()=>{
+  const wb = XLSX.utils.book_new();
+  const allFacilities = [...FIELD_FACILITIES, ...HQ_FACILITIES];
+  let sheetCount = 0;
+
+  allFacilities.forEach(fac=>{
+    const staff = employees.filter(e => e.facility === fac && e.status === '在籍中');
+    if(staff.length === 0) return;
+
+    const rows = staff.map(e => [
+      e.role || '', e.name, e.qualification || '無', e.employment,
+      kinmuKubun(e.employment), e.joinDate || ''
+    ]);
+    const sheetData = [
+      ['職種（役職）','氏名','資格','雇用区分','常勤・非常勤','入社日'],
+      ...rows
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws['!cols'] = [{wch:18},{wch:14},{wch:22},{wch:14},{wch:10},{wch:12}];
+
+    let sheetName = fac.replace(/[\\\/\?\*\[\]:]/g, '').substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    sheetCount++;
+  });
+
+  if(sheetCount === 0){
+    alert('在籍中のスタッフがいないため出力できません。');
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `勤務形態一覧_簡易版_${today}.xlsx`);
+});
+
 document.getElementById('open-import').addEventListener('click', ()=>{
   document.getElementById('excel-input').click();
 });
@@ -1437,6 +1521,9 @@ function applyRolePermissions(){
   document.getElementById('open-add-modal').style.display = isEditor ? '' : 'none';
   document.getElementById('open-import').style.display = isEditor ? '' : 'none';
   document.getElementById('download-template').style.display = isEditor ? '' : 'none';
+  // 個人情報を含む書き出しは、詳細情報を見られる権限に限定
+  const canSeeFullData = (currentUserRole === 'editor' || currentUserRole === 'viewer_full');
+  document.getElementById('export-all').style.display = canSeeFullData ? '' : 'none';
 }
 
 document.getElementById('login-btn').addEventListener('click', async ()=>{
