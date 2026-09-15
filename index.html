@@ -3,1759 +3,300 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>スタッフ情報データベース</title>
+<title>株式会社フォーグリーン データベース</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #FAFAF6;
-    --panel: #FFFFFF;
-    --ink: #262622;
-    --ink-soft: #6B6A62;
-    --line: #DEDACC;
-    --primary: #7A9E38;
-    --primary-soft: #F0F5E4;
-    --accent: #93B23C;
-    --accent-soft: #EEF4DC;
-    --gold: #B8912A;
-    --danger: #A6462F;
-    --radius: 3px;
+    --bg:#FAFAF6; --panel:#FFFFFF; --ink:#262622; --ink-soft:#6B6A62;
+    --line:#DEDACC; --radius:3px;
+    --staff:#7A9E38;  --staff-soft:#F0F5E4;
+    --child:#C2772A;  --child-soft:#FBF0E2;
   }
   *{box-sizing:border-box;}
-  html, body{ height:100%; }
+  html,body{height:100%;}
   body{
-    margin:0;
-    background:var(--bg);
-    color:var(--ink);
-    font-family:'Zen Kaku Gothic New', sans-serif;
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Zen Kaku Gothic New',sans-serif;
     -webkit-font-smoothing:antialiased;
-    display:flex;
-    flex-direction:column;
-    height:100vh;
-    overflow:hidden;
+    display:flex; flex-direction:column; min-height:100vh;
   }
-  h1,h2,h3,.serif{ font-family:'Zen Kaku Gothic New', sans-serif; }
 
   header.top{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:14px 20px;
-    background:var(--primary);
-    color:#fff;
-    flex-shrink:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 24px; background:#3A3A34; color:#fff; flex-shrink:0;
   }
-  header.top .brand{
-    display:flex;
-    align-items:baseline;
-    gap:10px;
+  header.top h1{ font-size:17px; margin:0; font-weight:700; letter-spacing:.02em; }
+  header.top .right{ display:flex; align-items:center; gap:10px; font-size:12.5px; }
+  header.top .user{ color:#D9D7CC; }
+  .role-badge{
+    border:1px solid rgba(255,255,255,.45); padding:4px 10px;
+    border-radius:20px; font-size:11.5px;
   }
-  header.top .brand h1{
-    font-size:19px;
-    margin:0;
-    font-weight:700;
-    letter-spacing:.02em;
-  }
-  header.top .brand span{
-    font-size:12px;
-    color:#F2F7E6;
-  }
-  header.top select{
-    background:transparent;
-    border:1px solid rgba(255,255,255,.75);
-    color:#fff;
-    padding:6px 10px;
-    font-size:13px;
-    border-radius:var(--radius);
-  }
-  header.top select option{ color:#111; }
-
-  .layout{
-    display:grid;
-    grid-template-columns:320px 1fr;
-    flex:1;
-    min-height:0;
-  }
-  @media (max-width:820px){
-    .layout{ grid-template-columns:1fr; }
-    .list-pane.hide-on-mobile{ display:none; }
-    .detail-pane.hide-on-mobile{ display:none; }
+  .logout{
+    background:none; border:1px solid rgba(255,255,255,.55); color:#fff;
+    padding:5px 12px; font-size:12px; border-radius:var(--radius);
+    cursor:pointer; font-family:inherit;
   }
 
-  .list-pane{
-    border-right:1px solid var(--line);
-    background:var(--panel);
-    display:flex;
-    flex-direction:column;
-    min-height:0;
-    overflow:hidden;
+  main{
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:40px 24px 60px;
   }
-  .list-pane .search-row{
-    padding:14px;
-    border-bottom:1px solid var(--line);
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    flex-shrink:0;
-  }
-  .list-pane input:not([type="checkbox"]), .list-pane select{
-    width:100%;
-    padding:9px 10px;
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    font-size:14px;
-    font-family:inherit;
-    background:#fff;
-  }
-  .list-pane input:not([type="checkbox"]):focus, .list-pane select:focus{
-    outline:2px solid var(--accent);
-    outline-offset:-1px;
-  }
-  .add-btn{
-    padding:9px 10px;
-    border:1px solid var(--primary);
-    background:var(--primary);
-    color:#fff;
-    border-radius:var(--radius);
-    font-size:13px;
-    cursor:pointer;
-    font-family:inherit;
-  }
-  .add-btn:hover{ background:#16292b; }
+  .greeting{ text-align:center; margin-bottom:38px; }
+  .greeting h2{ font-size:26px; margin:0 0 8px; font-weight:700; }
+  .greeting p{ font-size:14px; color:var(--ink-soft); margin:0; }
 
-  .secondary-btn{
-    padding:9px 10px;
-    border:1px solid var(--line);
-    background:#fff;
-    color:var(--primary);
-    border-radius:var(--radius);
-    font-size:13px;
-    cursor:pointer;
-    font-family:inherit;
+  .cards{ display:flex; gap:26px; flex-wrap:wrap; justify-content:center; }
+  .card{
+    width:330px; background:var(--panel); border:1px solid var(--line);
+    border-radius:6px; overflow:hidden; cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+    display:flex; flex-direction:column; text-align:left;
+    padding:0; font-family:inherit; color:inherit;
   }
-  .secondary-btn:hover{ border-color:var(--primary); }
-  .btn-row{ display:flex; gap:8px; }
-  .btn-row .secondary-btn, .btn-row .add-btn{ flex:1; }
-  .import-note{
-    font-size:11px;
-    color:var(--ink-soft);
-    line-height:1.5;
+  .card:hover{ transform:translateY(-3px); box-shadow:0 10px 26px rgba(38,38,34,.12); }
+  .card .stripe{ height:6px; }
+  .card.staff .stripe{ background:var(--staff); }
+  .card.child .stripe{ background:var(--child); }
+
+  .card .body{ padding:34px 28px 30px; flex:1; }
+  .icon-circle{
+    width:66px; height:66px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; margin-bottom:20px;
+  }
+  .card.staff .icon-circle{ background:var(--staff-soft); }
+  .card.child .icon-circle{ background:var(--child-soft); }
+
+  .card h3{ font-size:21px; margin:0 0 6px; font-weight:700; }
+  .card.staff h3{ color:#4E6B22; }
+  .card.child h3{ color:#8E5417; }
+  .card .desc{ font-size:13px; color:var(--ink-soft); line-height:1.7; margin:0 0 18px; }
+  .card ul{ margin:0; padding-left:17px; font-size:12.5px; color:var(--ink-soft); line-height:1.9; }
+
+  .card .foot{
+    padding:14px 28px; border-top:1px solid var(--line);
+    font-size:13px; font-weight:700; display:flex;
+    justify-content:space-between; align-items:center;
+  }
+  .card.staff .foot{ background:var(--staff-soft); color:#4E6B22; }
+  .card.child .foot{ background:var(--child-soft); color:#8E5417; }
+
+  .foot-note{
+    margin-top:40px; font-size:12px; color:var(--ink-soft); text-align:center; line-height:1.8;
   }
 
-  .result-count{
-    font-size:11.5px;
-    color:var(--ink-soft);
-    padding:8px 14px 4px;
-    flex-shrink:0;
+  @media (max-width:760px){
+    header.top{ padding:12px 16px; flex-wrap:wrap; gap:8px; }
+    header.top h1{ font-size:15px; }
+    header.top .right{ gap:8px; font-size:11.5px; width:100%; justify-content:flex-end; }
+    header.top .user{ margin-right:auto; }
+    main{ padding:28px 18px 50px; justify-content:flex-start; }
+    .greeting{ margin-bottom:26px; }
+    .greeting h2{ font-size:21px; }
+    .cards{ flex-direction:column; gap:18px; width:100%; }
+    .card{ width:100%; }
+    .card .body{ padding:24px 22px 20px; }
+    .icon-circle{ width:56px; height:56px; margin-bottom:16px; }
   }
 
-  .emp-list{
-    list-style:none;
-    margin:0;
-    padding:0;
-    overflow-y:auto;
-    flex:1;
-    min-height:0;
-  }
-  .emp-list li{
-    padding:12px 14px;
-    border-bottom:1px solid var(--line);
-    cursor:pointer;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:8px;
-  }
-  .emp-list li:hover{ background:var(--accent-soft); }
-  .emp-list li.active{ background:var(--primary-soft); border-left:3px solid var(--primary); }
-  .emp-list .name{ font-size:15px; font-weight:500; }
-  .emp-list .kana{ font-size:11px; color:var(--ink-soft); display:block; }
-  .emp-list .facility-tag{
-    font-size:10.5px;
-    color:var(--ink-soft);
-    border:1px solid var(--line);
-    padding:2px 6px;
-    border-radius:20px;
-    white-space:nowrap;
-  }
-  .emp-list .empty{
-    padding:24px 14px;
-    color:var(--ink-soft);
-    font-size:13px;
-    text-align:center;
-  }
-
-  .detail-pane{
-    padding:24px 28px 60px;
-    overflow-y:auto;
-    min-height:0;
-  }
-  .detail-header{
-    display:flex;
-    gap:20px;
-    align-items:flex-start;
-    padding-bottom:20px;
-    border-bottom:1px solid var(--line);
-    margin-bottom:20px;
-  }
-  .back-btn{
-    display:none;
-    background:none;
-    border:none;
-    color:var(--primary);
-    font-size:14px;
-    cursor:pointer;
-    padding:0 0 12px;
-    font-family:inherit;
-  }
-  @media (max-width:820px){
-    .back-btn.show{ display:block; }
-    .detail-pane{ padding-bottom:90px; }
-    .save-row{
-      position:fixed;
-      left:0;
-      right:0;
-      bottom:0;
-      margin-top:0;
-      padding:12px 16px;
-      background:var(--panel);
-      border-top:1px solid var(--line);
-      box-shadow:0 -4px 10px rgba(0,0,0,0.08);
-      z-index:50;
-    }
-  }
-  .photo-box{
-    position:relative;
-    width:88px;
-    height:88px;
-    flex-shrink:0;
-  }
-  .photo{
-    width:100%;
-    height:100%;
-    border-radius:50%;
-    background:var(--primary-soft);
-    color:var(--primary);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:28px;
-    font-weight:700;
-    font-family:'Zen Kaku Gothic New', sans-serif;
-    border:1px solid var(--line);
-    overflow:hidden;
-  }
-  .photo img{
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    display:block;
-  }
-  .photo-edit-row{
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-    margin-top:6px;
-  }
-  .photo-edit-row label, .photo-edit-row button{
-    font-size:10.5px;
-    text-align:center;
-    padding:3px 4px;
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    background:#fff;
-    color:var(--primary);
-    cursor:pointer;
-    font-family:inherit;
-  }
-  .photo-edit-row button.remove{ color:var(--danger); }
-  .list-thumb{
-    width:32px;
-    height:32px;
-    border-radius:50%;
-    object-fit:cover;
-    flex-shrink:0;
-    border:1px solid var(--line);
-  }
-  .list-thumb-fallback{
-    width:32px;
-    height:32px;
-    border-radius:50%;
-    background:var(--primary-soft);
-    color:var(--primary);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:13px;
-    font-weight:700;
-    font-family:'Zen Kaku Gothic New', sans-serif;
-    flex-shrink:0;
-    border:1px solid var(--line);
-  }
-  .detail-header .id-block h2{
-    margin:0 0 2px;
-    font-size:22px;
-  }
-  .detail-header .id-block .kana{
-    color:var(--ink-soft);
-    font-size:13px;
-    margin-bottom:8px;
-    display:block;
-  }
-  .badge-row{ display:flex; gap:8px; flex-wrap:wrap; }
-  .badge{
-    font-size:11.5px;
-    padding:3px 9px;
-    border-radius:20px;
-    border:1px solid var(--line);
-    color:var(--ink-soft);
-  }
-  .badge.role{ background:var(--accent-soft); color:#57692A; border-color:transparent; }
-  .badge.status-active{ background:var(--accent-soft); color:#57692A; border-color:transparent; }
-  .new-badge{
-    display:inline-block;
-    font-size:9.5px;
-    font-weight:700;
-    letter-spacing:.03em;
-    color:#fff;
-    background:var(--gold);
-    padding:1px 6px;
-    border-radius:3px;
-    margin-left:6px;
-    vertical-align:middle;
-  }
-  .badge.status-leave{ background:#F5EBE5; color:var(--danger); border-color:transparent; }
-
-  .edit-toggle{
-    margin-left:auto;
-    align-self:flex-start;
-    background:none;
-    border:1px solid var(--line);
-    padding:7px 14px;
-    font-size:13px;
-    border-radius:var(--radius);
-    cursor:pointer;
-    color:var(--primary);
-    font-family:inherit;
-  }
-  .edit-toggle:hover{ border-color:var(--primary); }
-
-  .tabs{
-    display:flex;
-    gap:2px;
-    border-bottom:1px solid var(--line);
-    margin-bottom:22px;
-  }
-  .tab-btn{
-    background:none;
-    border:none;
-    padding:10px 4px;
-    margin-right:22px;
-    font-size:14px;
-    color:var(--ink-soft);
-    cursor:pointer;
-    border-bottom:2px solid transparent;
-    font-family:inherit;
-  }
-  .tab-btn.active{
-    color:var(--primary);
-    border-bottom-color:var(--primary);
-    font-weight:500;
-  }
-
-  .field-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:20px 32px;
-  }
-  @media (max-width:600px){
-    .field-grid{ grid-template-columns:1fr; }
-  }
-  .field-grid.span-2{ grid-template-columns:1fr; }
-  .field{
-    display:flex;
-    flex-direction:column;
-    gap:5px;
-  }
-  .field label{
-    font-size:11.5px;
-    color:var(--ink-soft);
-    letter-spacing:.02em;
-  }
-  .field .value{
-    font-size:15px;
-    padding-bottom:6px;
-    border-bottom:1px solid var(--line);
-    min-height:22px;
-  }
-  .field input, .field select{
-    font-size:15px;
-    padding:6px 2px;
-    border:none;
-    border-bottom:1px solid var(--accent);
-    background:var(--accent-soft);
-    font-family:inherit;
-  }
-  .field input:focus{ outline:none; }
-
-  .tab-panel{ display:none; }
-  .tab-panel.active{ display:block; }
-
-  .save-row{
-    margin-top:28px;
-    padding:0;
-    display:flex;
-    gap:10px;
-  }
-  .save-row button{
-    font-family:inherit;
-    font-size:14px;
-    padding:9px 20px;
-    border-radius:var(--radius);
-    cursor:pointer;
-  }
-  .save-row .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
-  .save-row .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
-
-  .no-selection{
-    color:var(--ink-soft);
-    font-size:14px;
-    padding:60px 20px;
-    text-align:center;
-  }
-
-  .hist-title{
-    font-size:13px;
-    color:var(--ink-soft);
-    margin:0 0 10px;
-    letter-spacing:.02em;
-  }
-  table.hist-table{
-    width:100%;
-    border-collapse:collapse;
-    font-size:14px;
-  }
-  table.hist-table th{
-    text-align:left;
-    font-size:11.5px;
-    font-weight:500;
-    color:var(--ink-soft);
-    border-bottom:1px solid var(--line);
-    padding:6px 8px;
-  }
-  table.hist-table td{
-    padding:8px;
-    border-bottom:1px solid var(--line);
-  }
-  table.hist-table input, table.hist-table select{
-    width:100%;
-    font-size:14px;
-    font-family:inherit;
-    border:1px solid var(--line);
-    padding:5px 6px;
-    border-radius:var(--radius);
-  }
-  .hist-remove{
-    background:none;
-    border:none;
-    color:var(--danger);
-    font-size:12.5px;
-    cursor:pointer;
-    font-family:inherit;
-  }
-  .hist-add{
-    margin-top:10px;
-    background:none;
-    border:1px dashed var(--line);
-    color:var(--primary);
-    padding:7px 12px;
-    font-size:13px;
-    border-radius:var(--radius);
-    cursor:pointer;
-    font-family:inherit;
-  }
-  .hist-add:hover{ border-color:var(--primary); }
-
-  /* --- Add employee modal (simple inline panel) --- */
   .modal-backdrop{
-    position:fixed; inset:0; background:rgba(31,58,61,.35);
-    display:flex; align-items:center; justify-content:center;
-    z-index:50;
+    position:fixed; inset:0; background:rgba(38,38,34,.45);
+    display:flex; align-items:center; justify-content:center; z-index:60;
   }
   .modal{
-    background:#fff; width:min(480px, 92vw);
-    padding:24px; border-radius:var(--radius);
-    max-height:86vh; overflow-y:auto;
+    background:#fff; width:min(420px, 92vw); padding:28px;
+    border-radius:6px;
   }
-  .modal h3{ margin-top:0; }
-  .modal .field{ margin-bottom:14px; }
-  .modal .field input, .modal .field select{
-    border:1px solid var(--line);
-    background:#fff;
-    padding:8px;
-    border-radius:var(--radius);
+  .modal h3{ margin:0 0 4px; font-size:19px; }
+  .modal .lead{ font-size:12.5px; color:var(--ink-soft); margin:0 0 20px; }
+  .modal .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
+  .modal .field label{ font-size:11.5px; color:var(--ink-soft); }
+  .modal .field input{
+    border:1px solid var(--line); background:#fff; padding:9px;
+    border-radius:var(--radius); font-size:15px; font-family:inherit;
   }
-
-  .demo-banner{
-    background:#FBF1D6;
-    color:#6B5417;
-    font-size:12.5px;
-    text-align:center;
-    padding:6px 10px;
-    flex-shrink:0;
+  .modal .field input:focus{ outline:2px solid var(--staff); outline-offset:-1px; }
+  .modal .login-btn{
+    width:100%; background:var(--staff); color:#fff; border:1px solid var(--staff);
+    padding:11px; font-size:15px; border-radius:var(--radius);
+    cursor:pointer; font-family:inherit; margin-top:6px;
   }
-  .logout-btn{
-    background:none;
-    border:1px solid rgba(255,255,255,.75);
-    color:#fff;
-    padding:6px 12px;
-    font-size:12.5px;
-    border-radius:var(--radius);
-    cursor:pointer;
-    font-family:inherit;
-    margin-left:10px;
-  }
-  #login-error{
-    color:var(--danger);
-    font-size:13px;
-    display:none;
-    margin-top:4px;
-  }
-
-  #crop-viewport{
-    position:relative;
-    width:260px;
-    height:260px;
-    margin:0 auto;
-    overflow:hidden;
-    border-radius:50%;
-    border:1px solid var(--line);
-    background:#e5e5e0;
-    cursor:grab;
-    touch-action:none;
-  }
-  #crop-viewport.dragging{ cursor:grabbing; }
-  #crop-image{
-    position:absolute;
-    left:0;
-    top:0;
-    user-select:none;
-    -webkit-user-drag:none;
-    pointer-events:none;
-    max-width:none;
-  }
-  .crop-zoom-row{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin:16px auto 0;
-    max-width:280px;
-  }
-  .crop-zoom-row input[type="range"]{
-    flex:1;
-  }
-  .crop-zoom-label{
-    font-size:11px;
-    color:var(--ink-soft);
-    white-space:nowrap;
-  }
-  .crop-actions{
-    display:flex;
-    justify-content:center;
-    gap:10px;
-    margin-top:18px;
-  }
-  .crop-actions button{
-    font-family:inherit;
-    font-size:14px;
-    padding:9px 20px;
-    border-radius:var(--radius);
-    cursor:pointer;
-  }
-  .crop-actions .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
-  .crop-actions .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
+  #login-error{ color:#A6462F; font-size:13px; display:none; margin:10px 0 0; }
+  body.locked main{ filter:blur(3px); pointer-events:none; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-<div class="demo-banner" id="demo-banner" style="display:none;">
-  ⚠ デモモード：Supabase未接続のため、この端末内だけの仮データで動作しています
-</div>
-
-<header class="top">
-  <div class="brand">
-    <h1>スタッフ情報データベース</h1>
-    <span id="facility-count-label">全9施設</span>
-  </div>
-  <div>
-    <select id="facility-filter">
-      <option value="all">全施設を表示</option>
-    </select>
-    <button class="logout-btn" id="export-work-format" title="施設ごとに在籍者一覧をExcelで出力します（簡易版）">勤務形態一覧を出力</button>
-    <span id="role-badge" class="logout-btn" style="display:none; cursor:default;"></span>
-    <button class="logout-btn" id="logout-btn" style="display:none;">ログアウト</button>
-  </div>
-</header>
-
-<div class="layout">
-  <aside class="list-pane" id="list-pane">
-    <div class="search-row">
-      <input type="text" id="search-input" placeholder="氏名・フリガナ・施設名で検索">
-      <select id="status-filter">
-        <option value="active">在籍者のみ表示</option>
-        <option value="all">全員表示（退職者含む）</option>
-        <option value="retired">退職者のみ表示</option>
-      </select>
-      <select id="employment-filter">
-        <option value="all">全雇用区分を表示</option>
-      </select>
-      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer;">
-        <input type="checkbox" id="show-new-only" style="width:auto;">
-        新人のみ表示（入社3ヶ月以内）
-      </label>
-      <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
-      <div class="btn-row">
-        <button class="secondary-btn" id="download-template">テンプレートDL</button>
-        <button class="secondary-btn" id="open-import">Excelから取込</button>
-      </div>
-      <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
-      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
-      <div class="import-note">テンプレートの列見出しに合わせて入力したExcelファイルを取り込めます。既存データに追加されます。</div>
-    </div>
-    <div id="result-count" class="result-count"></div>
-    <ul class="emp-list" id="emp-list"></ul>
-  </aside>
-
-  <section class="detail-pane" id="detail-pane">
-    <button class="back-btn" id="back-btn">← 一覧に戻る</button>
-    <div id="detail-content">
-      <div class="no-selection">左の一覧からスタッフを選択してください</div>
-    </div>
-  </section>
-</div>
-
 <div class="modal-backdrop" id="login-overlay" style="display:none;">
   <div class="modal">
-    <h3 class="serif">ログイン</h3>
+    <h3>ログイン</h3>
+    <p class="lead">株式会社フォーグリーン データベース</p>
     <div class="field"><label>メールアドレス</label><input id="login-email" type="email" placeholder="staff@example.com"></div>
     <div class="field"><label>パスワード</label><input id="login-password" type="password"></div>
-    <div class="save-row">
-      <button class="save" id="login-btn">ログイン</button>
-    </div>
+    <button class="login-btn" id="login-btn">ログイン</button>
     <p id="login-error"></p>
   </div>
 </div>
 
-<div class="modal-backdrop" id="modal-backdrop" style="display:none;">
-  <div class="modal">
-    <h3 class="serif">スタッフ新規登録</h3>
-    <div class="field"><label>氏名</label><input id="m-name" placeholder="山田 太郎"></div>
-    <div class="field"><label>フリガナ</label><input id="m-kana" placeholder="ヤマダ タロウ"></div>
-    <div class="field"><label>生年月日</label><input id="m-birthday" type="date"></div>
-    <div class="field"><label>性別</label>
-      <select id="m-gender">
-        <option value="">未選択</option>
-        <option>男性</option>
-        <option>女性</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>所属施設</label>
-      <select id="m-facility"></select>
-    </div>
-    <div class="field"><label>役職</label><input id="m-role" placeholder="常務 / 専務 / 部長 / 主任 など"></div>
-    <div class="field"><label>雇用区分</label>
-      <select id="m-employment"></select>
-    </div>
-    <div class="field"><label>資格</label><input id="m-qualification" placeholder="児童指導員 / 保育士 / 社会福祉士 など"></div>
-    <div class="field"><label>運転免許</label>
-      <select id="m-license">
-        <option>無</option>
-        <option>有</option>
-      </select>
-    </div>
-    <div class="field"><label>入社日</label><input id="m-join" type="date"></div>
-    <div class="save-row">
-      <button class="save" id="m-save">登録する</button>
-      <button class="cancel" id="m-cancel">キャンセル</button>
-    </div>
+<header class="top">
+  <h1>株式会社フォーグリーン データベース</h1>
+  <div class="right">
+    <span class="user" id="user-name"></span>
+    <span class="role-badge" id="role-badge" style="display:none;"></span>
+    <button class="logout" id="logout-btn" style="display:none;">ログアウト</button>
   </div>
-</div>
+</header>
 
-<div class="modal-backdrop" id="crop-modal-backdrop" style="display:none;">
-  <div class="modal" style="text-align:center;">
-    <h3 class="serif">写真の位置を調整</h3>
-    <div id="crop-viewport">
-      <img id="crop-image" alt="">
-    </div>
-    <div class="crop-zoom-row">
-      <span class="crop-zoom-label">縮小</span>
-      <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1">
-      <span class="crop-zoom-label">拡大</span>
-    </div>
-    <div class="crop-actions">
-      <button class="save" id="crop-confirm">この範囲で使う</button>
-      <button class="cancel" id="crop-cancel">キャンセル</button>
-    </div>
+<main>
+  <div class="greeting">
+    <h2 id="greet">おつかれさまです</h2>
+    <p>どちらの情報を開きますか？</p>
   </div>
-</div>
+
+  <div class="cards">
+    <button class="card staff" id="card-staff">
+      <div class="stripe"></div>
+      <div class="body">
+        <div class="icon-circle">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#4E6B22" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <h3>スタッフ情報</h3>
+        <p class="desc">職員の情報を確認・管理します。</p>
+      </div>
+      <div class="foot"><span>開く</span><span>→</span></div>
+    </button>
+
+    <button class="card child" id="card-child">
+      <div class="stripe"></div>
+      <div class="body">
+        <div class="icon-circle">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8E5417" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4.2"/>
+            <path d="M4.5 21v-1.2A5.8 5.8 0 0 1 10.3 14h3.4a5.8 5.8 0 0 1 5.8 5.8V21"/>
+            <path d="M10.3 7.4h.01"/><path d="M13.7 7.4h.01"/>
+          </svg>
+        </div>
+        <h3>児童情報</h3>
+        <p class="desc">利用児童の情報を確認・管理します。</p>
+      </div>
+      <div class="foot"><span>開く</span><span>→</span></div>
+    </button>
+  </div>
+
+  <p class="foot-note">
+    ※ 表示できる範囲はアカウントの権限によって異なります。<br>
+    情報の取り扱いにはご注意ください。端末を離れるときは必ずログアウトしてください。
+  </p>
+
+</main>
 
 <script>
-// ================= クラウド接続設定 =================
-// Supabaseプロジェクトの Project URL と anon public key に書き換えてください。
-// 未設定（初期値のまま）の場合はデモモードで動作します（この端末内だけの仮データ）。
-const SUPABASE_URL = 'ここに新しいProject URLを入力';
-const SUPABASE_ANON_KEY = 'ここに新しいPublishable keyを入力';
+// ===================== クラウド接続設定 =====================
+const SUPABASE_URL = 'https://abfzvigpxdogsxxtfrvk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_ZI27NjYkmAC-XbCxVVsqTw_2Rla1Je8';
+
+// 各データベースのファイル名（同じフォルダに置く前提）
+const STAFF_URL    = 'staff.html';
+const CHILDREN_URL = 'children.html';
 
 function isSupabaseConfigured(){
   return SUPABASE_URL && !SUPABASE_URL.includes('ここに') &&
          SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('ここに');
 }
-
 const supabaseClient = isSupabaseConfigured()
   ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
-// ---------- サンプルデータ（デモモード用のダミー値。クラウド接続時はDBの内容に置き換わります） ----------
-const FIELD_FACILITIES = [
-  "きたせんじゅステップ",
-  "きたせんじゅステップ第2",
-  "きたせんじゅステップ第3",
-  "きたせんじゅステップ第4",
-  "きたせんじゅステップ第5",
-  "おだいステップ",
-  "こいわステップ",
-  "こいわステップ第2",
-  "こいわステップ第3",
-  "ほきまステップ"
-];
-const HQ_FACILITIES = [
-  "本社"
-];
-const FACILITIES = [...FIELD_FACILITIES, ...HQ_FACILITIES];
-
-const EMPLOYMENT_TYPES = ['役員', '社員', '常勤パート', 'パート', 'パートドライバー'];
-
-let employees = [
-  {
-    id: "S00142", name: "佐藤 美咲", kana: "サトウ ミサキ",
-    facility: "きたせんじゅステップ", role: "サービス管理責任者", employment: "社員",
-    status: "在籍中", birthday: "1990-04-12", gender: "女性",
-    joinDate: "2019-06-01", address: "東京都足立区西新井本町2-3-1",
-    phone: "090-1234-5678", email: "sato@example.com",
-    qualification: "児童発達支援管理責任者", hasLicense: "有", resignDate: '',
-    emergencyName: "佐藤 健一（配偶者）", emergencyPhone: "090-8765-4321",
-    notes: "児童発達支援管理責任者研修 修了（2021年）",
-    history: [
-      { date:"2019-06-01", type:"配属", facility:"きたせんじゅステップ", role:"児童指導員" },
-      { date:"2021-04-01", type:"昇格", facility:"きたせんじゅステップ", role:"サービス管理責任者" }
-    ]
-  },
-  {
-    id: "S00187", name: "中村 拓也", kana: "ナカムラ タクヤ",
-    facility: "こいわステップ", role: "児童指導員", employment: "社員",
-    status: "在籍中", birthday: "1993-11-02", gender: "男性",
-    joinDate: "2022-04-01", address: "東京都足立区竹の塚4-1-9",
-    phone: "080-2222-3333", email: "nakamura@example.com",
-    qualification: "", hasLicense: "有", resignDate: '',
-    emergencyName: "中村 恵子（母）", emergencyPhone: "080-4444-5555",
-    notes: "",
-    history: [
-      { date:"2022-04-01", type:"配属", facility:"おだいステップ", role:"児童指導員" },
-      { date:"2023-10-01", type:"異動", facility:"こいわステップ", role:"児童指導員" }
-    ]
-  },
-  {
-    id: "S00203", name: "田中 陽菜", kana: "タナカ ヒナ",
-    facility: "おだいステップ", role: "保育士", employment: "パート",
-    status: "産休・育休中", birthday: "1997-02-20", gender: "女性",
-    joinDate: "2023-09-01", address: "東京都足立区梅島1-5-2",
-    phone: "070-1111-2222", email: "tanaka@example.com",
-    qualification: "保育士", hasLicense: "無", resignDate: '',
-    emergencyName: "田中 大輔（配偶者）", emergencyPhone: "070-3333-4444",
-    notes: "",
-    history: [
-      { date:"2023-09-01", type:"配属", facility:"おだいステップ", role:"保育士" }
-    ]
-  }
-];
-
-let tempHistory = null;
-let tempPhoto = null;
-let pendingPhotoFile = null;
-let currentUserRole = 'editor'; // デモモード・クラウド未接続時は編集可扱い
-
-let activeId = null;
-let editing = false;
-let activeTab = 'basic';
-
-const listEl = document.getElementById('emp-list');
-const detailContent = document.getElementById('detail-content');
-const searchInput = document.getElementById('search-input');
-const facilityFilter = document.getElementById('facility-filter');
-const listPane = document.getElementById('list-pane');
-const detailPane = document.getElementById('detail-pane');
-const backBtn = document.getElementById('back-btn');
-
-function buildFacilityOptionsHTML(selected){
-  const fieldOpts = FIELD_FACILITIES.map(f => `<option ${f===selected?'selected':''}>${f}</option>`).join('');
-  const hqOpts = HQ_FACILITIES.map(f => `<option ${f===selected?'selected':''}>${f}</option>`).join('');
-  return `<optgroup label="施設">${fieldOpts}</optgroup><optgroup label="本社">${hqOpts}</optgroup>`;
-}
-
-function initFacilityOptions(){
-  facilityFilter.insertAdjacentHTML('beforeend', buildFacilityOptionsHTML(null));
-  document.getElementById('m-facility').insertAdjacentHTML('beforeend', buildFacilityOptionsHTML(null));
-  document.getElementById('facility-count-label').textContent = `全${FIELD_FACILITIES.length}施設＋本社`;
-}
-
-function initEmploymentOptions(){
-  const opts = EMPLOYMENT_TYPES.map(t => `<option>${t}</option>`).join('');
-  document.getElementById('m-employment').insertAdjacentHTML('beforeend', opts);
-  document.getElementById('employment-filter').insertAdjacentHTML('beforeend', opts);
-  document.getElementById('m-employment').value = '社員';
-}
-
-function isMobile(){ return window.innerWidth <= 820; }
-
-function renderList(){
-  const q = searchInput.value.trim();
-  const fac = facilityFilter.value;
-  const statusMode = document.getElementById('status-filter').value;
-  const empFilter = document.getElementById('employment-filter').value;
-  const newOnly = document.getElementById('show-new-only').checked;
-  listEl.innerHTML = '';
-  const filtered = employees.filter(e=>{
-    const matchesQ = !q || e.name.includes(q) || e.kana.includes(q) || e.facility.includes(q);
-    const matchesFac = fac === 'all' || e.facility === fac;
-    let matchesStatus = true;
-    if(statusMode === 'active') matchesStatus = e.status !== '退職';
-    else if(statusMode === 'retired') matchesStatus = e.status === '退職';
-    const matchesEmployment = empFilter === 'all' || e.employment === empFilter;
-    const matchesNew = !newOnly || isNewHire(e.joinDate);
-    return matchesQ && matchesFac && matchesStatus && matchesEmployment && matchesNew;
-  });
-  document.getElementById('result-count').textContent = `${filtered.length}名を表示中（全${employees.length}名）`;
-  if(filtered.length === 0){
-    listEl.innerHTML = '<li class="empty">該当するスタッフがいません</li>';
-    return;
-  }
-  filtered.forEach(e=>{
-    const li = document.createElement('li');
-    li.className = e.id === activeId ? 'active' : '';
-    const thumb = e.photo
-      ? `<img class="list-thumb" src="${e.photo}">`
-      : `<div class="list-thumb-fallback">${e.name.charAt(0)}</div>`;
-    li.innerHTML = `
-      ${thumb}
-      <div style="flex:1;">
-        <span class="name">${e.name}</span>
-        ${isNewHire(e.joinDate) ? '<span class="new-badge">NEW</span>' : ''}
-        <span class="kana">${e.kana}</span>
-      </div>
-      <span class="facility-tag">${e.facility}</span>
-    `;
-    li.addEventListener('click', ()=>selectEmployee(e.id));
-    listEl.appendChild(li);
-  });
-}
-
-function selectEmployee(id){
-  activeId = id;
-  editing = false;
-  activeTab = (currentUserRole === 'viewer_basic') ? 'work' : 'basic';
-  tempHistory = null;
-  tempPhoto = null;
-  pendingPhotoFile = null;
-  renderList();
-  renderDetail();
-  if(isMobile()){
-    listPane.classList.add('hide-on-mobile');
-    detailPane.classList.remove('hide-on-mobile');
-    backBtn.classList.add('show');
-  }
-}
-
-backBtn.addEventListener('click', ()=>{
-  listPane.classList.remove('hide-on-mobile');
-  detailPane.classList.add('hide-on-mobile');
-  backBtn.classList.remove('show');
-});
-
-function statusBadgeClass(status){
-  if(status === '在籍中') return 'status-active';
-  if(status === '休職中' || status === '産休・育休中') return 'status-leave';
-  return '';
-}
-
-function renderDetail(){
-  const e = employees.find(x=>x.id === activeId);
-  if(!e){
-    detailContent.innerHTML = '<div class="no-selection">左の一覧からスタッフを選択してください</div>';
-    return;
-  }
-  if(currentUserRole !== 'editor'){ editing = false; }
-  const initial = e.name.charAt(0);
-  const currentPhoto = tempPhoto === 'REMOVE' ? null : (tempPhoto || e.photo);
-
-  detailContent.innerHTML = `
-    <div class="detail-header">
-      <div class="photo-box">
-        <div class="photo">${currentPhoto ? `<img src="${currentPhoto}">` : initial}</div>
-        ${editing ? `
-        <div class="photo-edit-row">
-          <label for="photo-input">写真を選択</label>
-          ${currentPhoto ? '<button type="button" class="remove" id="photo-remove-btn">削除</button>' : ''}
-        </div>
-        <input type="file" id="photo-input" accept="image/*" style="display:none;">
-        ` : ''}
-      </div>
-      <div class="id-block">
-        <h2 class="serif">${e.name}</h2>
-        <span class="kana">${e.kana}　/　職員番号：${e.id}</span>
-        <div class="badge-row">
-          ${e.role ? `<span class="badge role">${e.role}</span>` : ''}
-          <span class="badge">${e.employment}</span>
-          <span class="badge ${statusBadgeClass(e.status)}">${e.status}</span>
-          ${isNewHire(e.joinDate) ? '<span class="new-badge" style="padding:3px 9px; font-size:11px;">NEW</span>' : ''}
-        </div>
-      </div>
-      <button class="edit-toggle" id="edit-toggle" style="${currentUserRole==='editor' ? '' : 'display:none;'}">${editing ? '編集を終了' : '編集する'}</button>
-    </div>
-
-    <div class="tabs">
-      ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>` : ''}
-      <button class="tab-btn ${activeTab==='work'?'active':''}" data-tab="work">所属・勤務情報</button>
-      ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='emergency'?'active':''}" data-tab="emergency">緊急連絡先</button>` : ''}
-    </div>
-
-    ${currentUserRole !== 'viewer_basic' ? `
-    <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
-      <div class="field-grid">
-        ${field('生年月日', e, 'birthday', 'date')}
-        ${derivedField('年齢', calcAge(e.birthday))}
-        ${selectField('性別', e, 'gender', ['男性','女性'])}
-        ${field('住所', e, 'address')}
-        ${field('電話番号', e, 'phone')}
-        ${field('メールアドレス', e, 'email')}
-      </div>
-    </div>
-    ` : ''}
-
-    <div class="tab-panel ${activeTab==='work'?'active':''}" data-panel="work">
-      <div class="field-grid">
-        ${facilitySelectField('所属施設', e, 'facility')}
-        ${field('役職', e, 'role')}
-        ${selectField('雇用区分', e, 'employment', EMPLOYMENT_TYPES)}
-        ${selectField('在籍状況', e, 'status', ['在籍中','休職中','産休・育休中','退職'])}
-        ${field('入社日', e, 'joinDate', 'date')}
-        ${e.status === '退職' ? field('退職日', e, 'resignDate', 'date') : ''}
-        ${derivedField('勤続年数', calcTenure(e.joinDate, e.resignDate))}
-        ${field('資格', e, 'qualification')}
-        ${selectField('運転免許', e, 'hasLicense', ['有','無'])}
-      </div>
-      ${currentUserRole !== 'viewer_basic' ? `
-      <div class="field-grid span-2" style="margin-top:20px;">
-        ${field('資格・研修等の備考', e, 'notes')}
-      </div>
-      ` : ''}
-      <div style="margin-top:28px;">
-        <p class="hist-title">所属・異動履歴</p>
-        <table class="hist-table">
-          <thead>
-            <tr><th style="width:120px;">年月日</th><th style="width:100px;">異動区分</th><th>所属施設</th><th>役職</th>${editing ? '<th style="width:50px;"></th>' : ''}</tr>
-          </thead>
-          <tbody id="hist-tbody">
-            ${renderHistoryRows(e)}
-          </tbody>
-        </table>
-        ${editing ? '<button class="hist-add" id="hist-add-row">＋ 履歴を追加</button>' : ''}
-      </div>
-    </div>
-
-    ${currentUserRole !== 'viewer_basic' ? `
-    <div class="tab-panel ${activeTab==='emergency'?'active':''}" data-panel="emergency">
-      <div class="field-grid">
-        ${field('緊急連絡先氏名', e, 'emergencyName')}
-        ${field('緊急連絡先電話番号', e, 'emergencyPhone')}
-      </div>
-    </div>
-    ` : ''}
-
-    ${editing ? `
-    <div class="save-row">
-      <button class="save" id="save-btn">保存する</button>
-      <button class="cancel" id="cancel-btn">キャンセル</button>
-    </div>` : ''}
-  `;
-
-  document.getElementById('edit-toggle').addEventListener('click', ()=>{
-    editing = !editing;
-    tempHistory = editing ? JSON.parse(JSON.stringify(e.history || [])) : null;
-    tempPhoto = null;
-    pendingPhotoFile = null;
-    renderDetail();
-  });
-
-  detailContent.querySelectorAll('.tab-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      activeTab = btn.dataset.tab;
-      detailContent.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-      detailContent.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-      btn.classList.add('active');
-      detailContent.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`).classList.add('active');
-    });
-  });
-
-  if(editing){
-    const photoInput = document.getElementById('photo-input');
-    if(photoInput){
-      photoInput.addEventListener('change', (evt)=>{
-        const file = evt.target.files[0];
-        if(!file) return;
-        if(file.size > 8 * 1024 * 1024){
-          alert('画像サイズは8MB以下にしてください');
-          evt.target.value = '';
-          return;
-        }
-        openCropModal(file);
-        evt.target.value = ''; // 同じファイルを選び直しても change が発火するように
-      });
-    }
-    const photoRemoveBtn = document.getElementById('photo-remove-btn');
-    if(photoRemoveBtn){
-      photoRemoveBtn.addEventListener('click', ()=>{
-        tempPhoto = 'REMOVE';
-        pendingPhotoFile = null;
-        renderDetail();
-      });
-    }
-
-    const addRowBtn = document.getElementById('hist-add-row');
-    if(addRowBtn){
-      addRowBtn.addEventListener('click', ()=>{
-        syncTempHistoryFromInputs();
-        tempHistory.push({date:'', type:'配属', facility: e.facility, role:''});
-        renderDetail();
-      });
-    }
-    detailContent.querySelectorAll('.hist-remove').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        syncTempHistoryFromInputs();
-        tempHistory.splice(Number(btn.dataset.histIdx), 1);
-        renderDetail();
-      });
-    });
-
-    document.getElementById('save-btn').addEventListener('click', async ()=>{
-      syncTempHistoryFromInputs();
-      let updatedRef = null;
-      employees = employees.map(x=>{
-        if(x.id !== e.id) return x;
-        const updated = {...x};
-        detailContent.querySelectorAll('[data-field]').forEach(inp=>{
-          updated[inp.dataset.field] = inp.value;
-        });
-        updated.history = tempHistory;
-        if(tempPhoto === 'REMOVE'){ updated.photo = null; }
-        else if(tempPhoto){ updated.photo = tempPhoto; }
-        updatedRef = updated;
-        return updated;
-      });
-
-      if(isSupabaseConfigured() && updatedRef){
-        if(pendingPhotoFile){
-          try{
-            const url = await uploadPhotoToStorage(pendingPhotoFile, updatedRef);
-            updatedRef.photo = url;
-          } catch(err){
-            alert('写真のアップロードに失敗しました：' + err.message);
-          }
-        } else if(tempPhoto === 'REMOVE'){
-          updatedRef.photo = null;
-        }
-        await updateEmployeeInDb(updatedRef);
-      }
-
-      editing = false;
-      tempHistory = null;
-      tempPhoto = null;
-      pendingPhotoFile = null;
-      renderList();
-      renderDetail();
-    });
-    document.getElementById('cancel-btn').addEventListener('click', ()=>{
-      editing = false;
-      tempHistory = null;
-      tempPhoto = null;
-      pendingPhotoFile = null;
-      renderDetail();
-    });
-  }
-}
-
-function syncTempHistoryFromInputs(){
-  const tbody = document.getElementById('hist-tbody');
-  if(!tbody) return;
-  tbody.querySelectorAll('input[data-hist-idx], select[data-hist-idx]').forEach(inp=>{
-    const idx = Number(inp.dataset.histIdx);
-    const key = inp.dataset.histField;
-    if(tempHistory[idx]) tempHistory[idx][key] = inp.value;
-  });
-}
-
-function renderHistoryRows(e){
-  const rows = editing ? (tempHistory || []) : (e.history || []);
-  if(rows.length === 0){
-    return `<tr><td colspan="${editing?5:4}" style="color:var(--ink-soft); font-size:13px;">登録されている異動履歴はありません</td></tr>`;
-  }
-  return rows.map((h, idx)=>{
-    if(editing){
-      return `<tr>
-        <td><input type="date" data-hist-idx="${idx}" data-hist-field="date" value="${h.date||''}"></td>
-        <td><select data-hist-idx="${idx}" data-hist-field="type">${['配属','異動','昇格','降格','退職'].map(t=>`<option ${t===h.type?'selected':''}>${t}</option>`).join('')}</select></td>
-        <td><select data-hist-idx="${idx}" data-hist-field="facility">${buildFacilityOptionsHTML(h.facility)}</select></td>
-        <td><input type="text" data-hist-idx="${idx}" data-hist-field="role" value="${h.role||''}"></td>
-        <td><button class="hist-remove" data-hist-idx="${idx}">削除</button></td>
-      </tr>`;
-    }
-    return `<tr><td>${h.date||''}</td><td>${h.type||''}</td><td>${h.facility||''}</td><td>${h.role||''}</td></tr>`;
-  }).join('');
-}
-
-function field(label, obj, key, type='text'){
-  if(editing){
-    return `<div class="field"><label>${label}</label><input data-field="${key}" type="${type}" value="${obj[key] ?? ''}"></div>`;
-  }
-  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
-}
-
-function selectField(label, obj, key, options){
-  if(editing){
-    const opts = options.map(o=>`<option ${o===obj[key]?'selected':''}>${o}</option>`).join('');
-    return `<div class="field"><label>${label}</label><select data-field="${key}">${opts}</select></div>`;
-  }
-  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
-}
-
-function facilitySelectField(label, obj, key){
-  if(editing){
-    return `<div class="field"><label>${label}</label><select data-field="${key}">${buildFacilityOptionsHTML(obj[key])}</select></div>`;
-  }
-  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
-}
-
-// 生年月日・入社日から自動計算する表示専用の項目（編集不可）
-function derivedField(label, value){
-  return `<div class="field"><label>${label}</label><div class="value">${value}</div></div>`;
-}
-
-// 既存の職員番号とぶつからない、次の番号を採番する
-// （既に使われている番号の最大値+1 を使うので、削除や取込があっても重複しない）
-function nextStaffNo(extraTaken){
-  const taken = new Set(employees.map(e => e.id));
-  if(extraTaken) extraTaken.forEach(v => taken.add(v));
-
-  let max = 0;
-  taken.forEach(id=>{
-    const m = /^S(\d+)$/.exec(String(id || ''));
-    if(m){
-      const n = parseInt(m[1], 10);
-      if(n > max) max = n;
-    }
-  });
-
-  let n = max + 1;
-  let candidate = 'S' + String(n).padStart(5, '0');
-  while(taken.has(candidate)){
-    n++;
-    candidate = 'S' + String(n).padStart(5, '0');
-  }
-  return candidate;
-}
-
-function isNewHire(joinDate){
-  if(!joinDate) return false;
-  const j = new Date(joinDate);
-  if(isNaN(j)) return false;
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  return j >= ninetyDaysAgo && j <= new Date();
-}
-
-function calcAge(birthday){
-  if(!birthday) return '—';
-  const b = new Date(birthday);
-  if(isNaN(b)) return '—';
-  const today = new Date();
-  let age = today.getFullYear() - b.getFullYear();
-  const beforeBirthdayThisYear = (today.getMonth() < b.getMonth()) ||
-    (today.getMonth() === b.getMonth() && today.getDate() < b.getDate());
-  if(beforeBirthdayThisYear) age--;
-  return age + '歳';
-}
-
-function calcTenure(joinDate, resignDate){
-  if(!joinDate) return '—';
-  const j = new Date(joinDate);
-  if(isNaN(j)) return '—';
-  let end = new Date();
-  if(resignDate){
-    const r = new Date(resignDate);
-    if(!isNaN(r)) end = r;
-  }
-  let years = end.getFullYear() - j.getFullYear();
-  let months = end.getMonth() - j.getMonth();
-  if(end.getDate() < j.getDate()) months--;
-  if(months < 0){ years--; months += 12; }
-  if(years <= 0 && months <= 0) return '1ヶ月未満';
-  const parts = [];
-  if(years > 0) parts.push(years + '年');
-  if(months > 0) parts.push(months + 'ヶ月');
-  return parts.join('');
-}
-
-searchInput.addEventListener('input', renderList);
-facilityFilter.addEventListener('change', renderList);
-document.getElementById('status-filter').addEventListener('change', renderList);
-document.getElementById('employment-filter').addEventListener('change', renderList);
-document.getElementById('show-new-only').addEventListener('change', renderList);
-
-// --- 新規追加モーダル ---
-const modalBackdrop = document.getElementById('modal-backdrop');
-document.getElementById('open-add-modal').addEventListener('click', ()=>{
-  modalBackdrop.style.display = 'flex';
-});
-document.getElementById('m-cancel').addEventListener('click', ()=>{
-  modalBackdrop.style.display = 'none';
-});
-document.getElementById('m-save').addEventListener('click', async ()=>{
-  const name = document.getElementById('m-name').value.trim();
-  if(!name){ alert('氏名を入力してください'); return; }
-  const newId = nextStaffNo();
-  const facility = document.getElementById('m-facility').value || FACILITIES[0];
-  const role = document.getElementById('m-role').value.trim();
-  const joinDate = document.getElementById('m-join').value;
-  const newEmp = {
-    id: newId,
-    name,
-    kana: document.getElementById('m-kana').value.trim(),
-    facility,
-    role,
-    employment: document.getElementById('m-employment').value,
-    status: '在籍中',
-    birthday: document.getElementById('m-birthday').value,
-    gender: document.getElementById('m-gender').value,
-    joinDate,
-    resignDate: '',
-    qualification: document.getElementById('m-qualification').value.trim(),
-    hasLicense: document.getElementById('m-license').value,
-    address: '', phone: '', email: '',
-    emergencyName: '', emergencyPhone: '', notes: '',
-    history: [{ date: joinDate, type: '配属', facility, role }]
-  };
-  employees.push(newEmp);
-  modalBackdrop.style.display = 'none';
-  ['m-name','m-kana','m-role','m-join','m-birthday','m-qualification']
-    .forEach(id=>document.getElementById(id).value='');
-  document.getElementById('m-gender').value = '';
-  document.getElementById('m-license').value = '無';
-  document.getElementById('m-employment').value = '社員';
-  renderList();
-  selectEmployee(newId);
-  if(isSupabaseConfigured()){
-    await insertEmployeeToDb(newEmp);
-  }
-});
-
-// ---------- Excelテンプレート ダウンロード / 取込 ----------
-const TEMPLATE_HEADERS = [
-  "氏名","フリガナ","職員番号","所属施設","役職","雇用区分","在籍状況",
-  "生年月日","性別","入社日","退職日","資格","運転免許","住所","電話番号","メールアドレス",
-  "緊急連絡先氏名","緊急連絡先電話番号","備考"
-];
-
-const HEADER_TO_KEY = {
-  "氏名":"name", "フリガナ":"kana", "職員番号":"id", "所属施設":"facility",
-  "役職":"role", "雇用区分":"employment", "在籍状況":"status",
-  "生年月日":"birthday", "性別":"gender", "入社日":"joinDate", "退職日":"resignDate",
-  "資格":"qualification", "運転免許":"hasLicense",
-  "住所":"address", "電話番号":"phone", "メールアドレス":"email",
-  "緊急連絡先氏名":"emergencyName", "緊急連絡先電話番号":"emergencyPhone", "備考":"notes"
+const ROLE_LABELS = {
+  editor:'編集可能',
+  viewer_full:'閲覧のみ（詳細情報）',
+  viewer_basic:'閲覧のみ（基本情報）'
 };
 
-function excelDateToStr(v){
-  if(v instanceof Date && !isNaN(v)){
-    const y = v.getFullYear();
-    const m = String(v.getMonth()+1).padStart(2,'0');
-    const d = String(v.getDate()).padStart(2,'0');
-    return `${y}-${m}-${d}`;
-  }
-  return v ?? '';
-}
-
-document.getElementById('download-template').addEventListener('click', ()=>{
-  const wb = XLSX.utils.book_new();
-  const sampleRow = TEMPLATE_HEADERS.map(h => h === "所属施設" ? FACILITIES[0] : (h === "雇用区分" ? "社員" : (h === "在籍状況" ? "在籍中" : "")));
-  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, sampleRow]);
-  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
-  XLSX.utils.book_append_sheet(wb, ws, "スタッフ一覧");
-  XLSX.writeFile(wb, "スタッフ情報_取込テンプレート.xlsx");
-});
-
-// 常勤/非常勤の簡易判定（雇用区分ベース）
-const FULLTIME_EMPLOYMENTS = ['役員', '社員', '常勤パート'];
-function kinmuKubun(employment){
-  return FULLTIME_EMPLOYMENTS.includes(employment) ? '常勤' : '非常勤';
-}
-
-// 全データを取込テンプレートと同じ列構成で書き出す
-document.getElementById('export-all').addEventListener('click', ()=>{
-  if(employees.length === 0){
-    alert('書き出すデータがありません。');
-    return;
-  }
-
-  const KEY_ORDER = [
-    'name','kana','id','facility','role','employment','status',
-    'birthday','gender','joinDate','resignDate','qualification','hasLicense',
-    'address','phone','email','emergencyName','emergencyPhone','notes'
-  ];
-
-  const rows = employees.map(e => KEY_ORDER.map(k => e[k] ?? ''));
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...rows]);
-  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
-  XLSX.utils.book_append_sheet(wb, ws, "スタッフ一覧");
-
-  // 異動履歴は別シートに出す
-  const histRows = [];
-  employees.forEach(e=>{
-    (e.history || []).forEach(h=>{
-      histRows.push([e.id, e.name, h.date || '', h.type || '', h.facility || '', h.role || '']);
-    });
-  });
-  if(histRows.length > 0){
-    const hws = XLSX.utils.aoa_to_sheet([
-      ['職員番号','氏名','年月日','異動区分','所属施設','役職'],
-      ...histRows
-    ]);
-    hws['!cols'] = [{wch:12},{wch:14},{wch:12},{wch:10},{wch:20},{wch:18}];
-    XLSX.utils.book_append_sheet(wb, hws, "異動履歴");
-  }
-
-  const today = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `スタッフ一覧_${today}.xlsx`);
-});
-
-document.getElementById('export-work-format').addEventListener('click', ()=>{
-  const wb = XLSX.utils.book_new();
-  const allFacilities = [...FIELD_FACILITIES, ...HQ_FACILITIES];
-  let sheetCount = 0;
-
-  allFacilities.forEach(fac=>{
-    const staff = employees.filter(e => e.facility === fac && e.status === '在籍中');
-    if(staff.length === 0) return;
-
-    const rows = staff.map(e => [
-      e.role || '', e.name, e.qualification || '無', e.employment,
-      kinmuKubun(e.employment), e.joinDate || ''
-    ]);
-    const sheetData = [
-      ['職種（役職）','氏名','資格','雇用区分','常勤・非常勤','入社日'],
-      ...rows
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-    ws['!cols'] = [{wch:18},{wch:14},{wch:22},{wch:14},{wch:10},{wch:12}];
-
-    let sheetName = fac.replace(/[\\\/\?\*\[\]:]/g, '').substring(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    sheetCount++;
-  });
-
-  if(sheetCount === 0){
-    alert('在籍中のスタッフがいないため出力できません。');
-    return;
-  }
-
-  const today = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `勤務形態一覧_簡易版_${today}.xlsx`);
-});
-
-document.getElementById('open-import').addEventListener('click', ()=>{
-  document.getElementById('excel-input').click();
-});
-
-document.getElementById('excel-input').addEventListener('change', async (evt)=>{
-  const file = evt.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async (e)=>{
-    try{
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, {type:'array', cellDates:true});
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-
-      let importedCount = 0;
-      let skippedCount = 0;
-      const newlyImported = [];
-      rows.forEach(row=>{
-        const emp = {
-          id:'', name:'', kana:'', facility: FACILITIES[0], role:'', employment:'社員',
-          status:'在籍中', birthday:'', gender:'', joinDate:'', resignDate:'', qualification:'', hasLicense:'無', address:'', phone:'',
-          email:'', emergencyName:'', emergencyPhone:'', notes:'', history:[]
-        };
-        Object.entries(row).forEach(([header, value])=>{
-          const key = HEADER_TO_KEY[header.trim()];
-          if(!key) return;
-          if(key === 'birthday' || key === 'joinDate' || key === 'resignDate'){
-            emp[key] = excelDateToStr(value);
-          } else {
-            emp[key] = String(value ?? '').trim();
-          }
-        });
-        if(!emp.name) return; // 氏名が無い行はスキップ
-
-        if(emp.id){
-          // 既に同じ職員番号が登録済みなら二重登録になるので取り込まない
-          if(employees.some(x => x.id === emp.id)){
-            skippedCount++;
-            return;
-          }
-        } else {
-          emp.id = nextStaffNo();
-        }
-
-        employees.push(emp);
-        newlyImported.push(emp);
-        importedCount++;
-      });
-
-      renderList();
-
-      if(isSupabaseConfigured()){
-        for(const emp of newlyImported){
-          await insertEmployeeToDb(emp);
-        }
-      }
-
-      let msg = `${importedCount}件のスタッフ情報を取り込みました。`;
-      if(skippedCount > 0){
-        msg += `\n${skippedCount}件は既に同じ職員番号が登録されているため、取り込みませんでした。`;
-      }
-      alert(msg);
-    } catch(err){
-      alert('ファイルの読み込みに失敗しました。テンプレートの列見出しと一致しているかご確認ください。');
-      console.error(err);
-    } finally {
-      evt.target.value = '';
-    }
-  };
-  reader.readAsArrayBuffer(file);
-});
-
-// ================= クラウド連携（Supabase） =================
-
-function rowToEmployee(row, historyRows){
-  return {
-    id: row.staff_no || row.id,
-    dbId: row.id,
-    name: row.name, kana: row.kana, facility: row.facility, role: row.role,
-    employment: row.employment, status: row.status, birthday: row.birthday || '',
-    gender: row.gender || '', joinDate: row.join_date || '', resignDate: row.resign_date || '',
-    qualification: row.qualification || '', hasLicense: row.has_license || '無',
-    address: row.address || '',
-    phone: row.phone || '', email: row.email || '', emergencyName: row.emergency_name || '',
-    emergencyPhone: row.emergency_phone || '', notes: row.notes || '', photo: row.photo_url || null,
-    history: (historyRows || []).map(h => ({date: h.date, type: h.type, facility: h.facility, role: h.role}))
-  };
-}
-
-function employeeToRow(emp){
-  return {
-    staff_no: emp.id, name: emp.name, kana: emp.kana, facility: emp.facility, role: emp.role,
-    employment: emp.employment, status: emp.status, birthday: emp.birthday || null,
-    gender: emp.gender, join_date: emp.joinDate || null, resign_date: emp.resignDate || null,
-    qualification: emp.qualification || null, has_license: emp.hasLicense || '無',
-    address: emp.address, phone: emp.phone,
-    email: emp.email, emergency_name: emp.emergencyName, emergency_phone: emp.emergencyPhone,
-    notes: emp.notes, photo_url: emp.photo || null
-  };
-}
-
-async function loadEmployeesFromDb(){
-  const viewName = (currentUserRole === 'viewer_basic') ? 'employees_basic' : 'employees_full';
-  const { data, error } = await supabaseClient.from(viewName).select('*');
-  if(error){
-    alert('データの取得に失敗しました：' + error.message);
-    return;
-  }
-
-  const { data: historyData, error: histError } = await supabaseClient.from('employee_history_shared').select('*');
-  const historyByEmployeeId = {};
-  if(!histError && historyData){
-    historyData.forEach(h=>{
-      if(!historyByEmployeeId[h.employee_id]) historyByEmployeeId[h.employee_id] = [];
-      historyByEmployeeId[h.employee_id].push(h);
-    });
-  }
-
-  employees = data.map(row => rowToEmployee(row, historyByEmployeeId[row.id]));
-  renderList();
-}
-
-async function insertEmployeeToDb(emp){
-  // 行のIDはこちらで発行する。
-  // （挿入後に .select() で読み返すと employees テーブルへのSELECT権限が必要になり、
-  //  列単位の制御のために権限を外している構成では 42501 エラーになるため）
-  const newId = (crypto.randomUUID) ? crypto.randomUUID() : null;
-  const payload = employeeToRow(emp);
-  if(newId) payload.id = newId;
-
-  const { error } = await supabaseClient.from('employees').insert(payload);
-  if(error){ alert('登録に失敗しました：' + error.message); return; }
-
-  emp.dbId = newId;
-  if(newId && emp.history && emp.history.length){
-    await supabaseClient.from('employee_history').insert(
-      emp.history.map(h => ({...h, employee_id: newId}))
-    );
-  }
-}
-
-async function updateEmployeeInDb(emp){
-  if(!emp.dbId){ await insertEmployeeToDb(emp); return; }
-
-  // UPDATE / DELETE は対象行を探すためにテーブルのSELECT権限を要求する。
-  // 列単位の制御のためSELECTを外しているので、専用の関数（security definer）経由で更新する。
-  const { error } = await supabaseClient.rpc('update_employee', {
-    p_id: emp.dbId,
-    p_data: employeeToRow(emp)
-  });
-  if(error){ alert('更新に失敗しました：' + error.message); return; }
-
-  const { error: histError } = await supabaseClient.rpc('replace_employee_history', {
-    p_employee_id: emp.dbId,
-    p_history: (emp.history || []).map(h => ({
-      date: h.date || '', type: h.type || '', facility: h.facility || '', role: h.role || ''
-    }))
-  });
-  if(histError){ alert('異動履歴の更新に失敗しました：' + histError.message); }
-}
-
-async function uploadPhotoToStorage(file, emp){
-  const path = `${emp.dbId || emp.id}/${Date.now()}_${file.name}`;
-  const { error: uploadError } = await supabaseClient.storage.from('staff-photos').upload(path, file, {upsert:true});
-  if(uploadError){ throw uploadError; }
-  const { data } = supabaseClient.storage.from('staff-photos').getPublicUrl(path);
-  return data.publicUrl;
-}
-
+// ===================== 認証 =====================
 async function checkSession(){
   const { data } = await supabaseClient.auth.getSession();
-  if(data.session){
-    await enterApp();
-  } else {
-    document.getElementById('login-overlay').style.display = 'flex';
-  }
+  if(data.session) await enterApp();
+  else showLogin();
+}
+
+function showLogin(){
+  document.body.classList.add('locked');
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('user-name').textContent = '';
+  document.getElementById('role-badge').style.display = 'none';
+  document.getElementById('logout-btn').style.display = 'none';
 }
 
 async function enterApp(){
+  document.body.classList.remove('locked');
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('logout-btn').style.display = 'inline-block';
-  await loadCurrentUserRole();
-  await loadEmployeesFromDb();
-}
 
-async function loadCurrentUserRole(){
-  const { data: userData } = await supabaseClient.auth.getUser();
-  const uid = userData?.user?.id;
-  if(!uid){ currentUserRole = 'viewer_basic'; }
-  else {
+  const { data: u } = await supabaseClient.auth.getUser();
+  const uid = u?.user?.id;
+  document.getElementById('user-name').textContent = u?.user?.email || '';
+
+  let role = 'viewer_basic';
+  if(uid){
     const { data, error } = await supabaseClient
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', uid)
-      .single();
-    currentUserRole = (!error && data) ? data.role : 'viewer_basic';
+      .from('user_roles').select('role').eq('user_id', uid).single();
+    if(!error && data) role = data.role;
   }
-  applyRolePermissions();
-}
-
-const ROLE_LABELS = {
-  editor: '編集可能',
-  viewer_full: '閲覧者（詳細情報）',
-  viewer_basic: '閲覧者（基本情報のみ）'
-};
-
-function applyRolePermissions(){
-  const isEditor = currentUserRole === 'editor';
   const badge = document.getElementById('role-badge');
+  badge.textContent = ROLE_LABELS[role] || '閲覧のみ';
   badge.style.display = 'inline-block';
-  badge.textContent = ROLE_LABELS[currentUserRole] || '閲覧のみ';
-  document.getElementById('open-add-modal').style.display = isEditor ? '' : 'none';
-  document.getElementById('open-import').style.display = isEditor ? '' : 'none';
-  document.getElementById('download-template').style.display = isEditor ? '' : 'none';
-  // 個人情報を含む書き出しは、詳細情報を見られる権限に限定
-  const canSeeFullData = (currentUserRole === 'editor' || currentUserRole === 'viewer_full');
-  document.getElementById('export-all').style.display = canSeeFullData ? '' : 'none';
 }
 
 document.getElementById('login-btn').addEventListener('click', async ()=>{
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
-  const errEl = document.getElementById('login-error');
-  errEl.style.display = 'none';
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
   const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if(error){
-    errEl.textContent = 'ログインに失敗しました：' + error.message;
-    errEl.style.display = 'block';
+    err.textContent = 'ログインに失敗しました：' + error.message;
+    err.style.display = 'block';
     return;
   }
   await enterApp();
 });
 
-document.getElementById('logout-btn').addEventListener('click', async ()=>{
-  await supabaseClient.auth.signOut();
-  employees = [];
-  activeId = null;
-  renderList();
-  detailContent.innerHTML = '<div class="no-selection">左の一覧からスタッフを選択してください</div>';
-  document.getElementById('logout-btn').style.display = 'none';
-  document.getElementById('login-overlay').style.display = 'flex';
+document.getElementById('login-password').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') document.getElementById('login-btn').click();
 });
 
-// ================= 写真のトリミング =================
-let cropState = null; // { img, naturalW, naturalH, minScale, scale, offsetX, offsetY }
-const CROP_VIEWPORT = 260;
-const CROP_OUTPUT = 480;
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  await supabaseClient.auth.signOut();
+  showLogin();
+});
 
-function openCropModal(file){
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
-    const img = document.getElementById('crop-image');
-    img.onload = ()=>{
-      const naturalW = img.naturalWidth;
-      const naturalH = img.naturalHeight;
-      const minScale = Math.max(CROP_VIEWPORT / naturalW, CROP_VIEWPORT / naturalH);
-      cropState = {
-        naturalW, naturalH, minScale,
-        scale: minScale,
-        offsetX: (CROP_VIEWPORT - naturalW * minScale) / 2,
-        offsetY: (CROP_VIEWPORT - naturalH * minScale) / 2
-      };
-      document.getElementById('crop-zoom').value = 1;
-      applyCropTransform();
-      document.getElementById('crop-modal-backdrop').style.display = 'flex';
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-}
+// ===================== 画面遷移 =====================
+document.getElementById('card-staff').addEventListener('click', ()=>{
+  location.href = STAFF_URL;
+});
+document.getElementById('card-child').addEventListener('click', ()=>{
+  location.href = CHILDREN_URL;
+});
 
-function applyCropTransform(){
-  const img = document.getElementById('crop-image');
-  img.style.width = (cropState.naturalW * cropState.scale) + 'px';
-  img.style.height = (cropState.naturalH * cropState.scale) + 'px';
-  img.style.transform = `translate(${cropState.offsetX}px, ${cropState.offsetY}px)`;
-}
-
-function clampCropOffset(){
-  const w = cropState.naturalW * cropState.scale;
-  const h = cropState.naturalH * cropState.scale;
-  const minX = CROP_VIEWPORT - w;
-  const minY = CROP_VIEWPORT - h;
-  cropState.offsetX = Math.min(0, Math.max(minX, cropState.offsetX));
-  cropState.offsetY = Math.min(0, Math.max(minY, cropState.offsetY));
-}
-
-(function setupCropInteractions(){
-  const viewport = document.getElementById('crop-viewport');
-  let dragging = false;
-  let startX, startY, startOffsetX, startOffsetY;
-
-  viewport.addEventListener('pointerdown', (e)=>{
-    if(!cropState) return;
-    dragging = true;
-    viewport.classList.add('dragging');
-    viewport.setPointerCapture(e.pointerId);
-    startX = e.clientX; startY = e.clientY;
-    startOffsetX = cropState.offsetX; startOffsetY = cropState.offsetY;
-  });
-  viewport.addEventListener('pointermove', (e)=>{
-    if(!dragging || !cropState) return;
-    cropState.offsetX = startOffsetX + (e.clientX - startX);
-    cropState.offsetY = startOffsetY + (e.clientY - startY);
-    clampCropOffset();
-    applyCropTransform();
-  });
-  ['pointerup','pointercancel','pointerleave'].forEach(evt=>{
-    viewport.addEventListener(evt, ()=>{
-      dragging = false;
-      viewport.classList.remove('dragging');
-    });
-  });
-
-  document.getElementById('crop-zoom').addEventListener('input', (e)=>{
-    if(!cropState) return;
-    const oldScale = cropState.scale;
-    const newScale = cropState.minScale * parseFloat(e.target.value);
-    // ズーム中心をビューポート中央に保つ
-    const cx = CROP_VIEWPORT / 2;
-    const cy = CROP_VIEWPORT / 2;
-    cropState.offsetX = cx - ((cx - cropState.offsetX) / oldScale) * newScale;
-    cropState.offsetY = cy - ((cy - cropState.offsetY) / oldScale) * newScale;
-    cropState.scale = newScale;
-    clampCropOffset();
-    applyCropTransform();
-  });
-
-  document.getElementById('crop-cancel').addEventListener('click', ()=>{
-    document.getElementById('crop-modal-backdrop').style.display = 'none';
-    cropState = null;
-  });
-
-  document.getElementById('crop-confirm').addEventListener('click', ()=>{
-    if(!cropState) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = CROP_OUTPUT;
-    canvas.height = CROP_OUTPUT;
-    const ctx = canvas.getContext('2d');
-    const img = document.getElementById('crop-image');
-    const sx = -cropState.offsetX / cropState.scale;
-    const sy = -cropState.offsetY / cropState.scale;
-    const sSize = CROP_VIEWPORT / cropState.scale;
-    ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, CROP_OUTPUT, CROP_OUTPUT);
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    tempPhoto = dataUrl;
-    canvas.toBlob((blob)=>{
-      pendingPhotoFile = new File([blob], 'photo.jpg', {type:'image/jpeg'});
-    }, 'image/jpeg', 0.9);
-
-    document.getElementById('crop-modal-backdrop').style.display = 'none';
-    cropState = null;
-    renderDetail();
-  });
+// 時間帯であいさつを変える
+(function(){
+  const h = new Date().getHours();
+  document.getElementById('greet').textContent =
+    h < 11 ? 'おはようございます' : 'おつかれさまです';
 })();
-
-
-// ================= 起動処理 =================
-initFacilityOptions();
-initEmploymentOptions();
 
 if(isSupabaseConfigured()){
   checkSession();
 } else {
-  document.getElementById('demo-banner').style.display = 'block';
-  renderList();
-}
-
-if(isMobile()){
-  detailPane.classList.add('hide-on-mobile');
+  document.getElementById('user-name').textContent = 'デモモード';
 }
 </script>
 </body>

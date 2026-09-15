@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>児童情報データベース</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #FAFAF6;
+    --panel: #FFFFFF;
+    --ink: #262622;
+    --ink-soft: #6B6A62;
+    --line: #DEDACC;
+    /* 児童DBの識別色（スタッフDBは黄緑、児童DBはテラコッタ） */
+    --primary: #C2772A;
+    --primary-soft: #FBF0E2;
+    /* ブランドの黄緑は共通アクセントとして両方で使用 */
+    --accent: #93B23C;
+    --accent-soft: #EEF4DC;
+    --danger: #A6462F;
+    --warn: #B8912A;
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  html, body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
+  }
+  h1,h2,h3{ font-family:'Zen Kaku Gothic New', sans-serif; }
+
+  .demo-banner{
+    background:#FBF1D6; color:#6B5417; font-size:12.5px;
+    text-align:center; padding:6px 10px; flex-shrink:0;
+  }
+
+  header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; background:var(--primary); color:#fff; flex-shrink:0;
+  }
+  header.top .brand{ display:flex; align-items:baseline; gap:10px; }
+  header.top .brand h1{ font-size:19px; margin:0; font-weight:700; letter-spacing:.02em; }
+  header.top .brand span{ font-size:12px; color:#FCEEDC; }
+  header.top select{
+    background:transparent; border:1px solid rgba(255,255,255,.75);
+    color:#fff; padding:6px 10px; font-size:13px; border-radius:var(--radius);
+  }
+  header.top select option{ color:#111; }
+  .hdr-btn{
+    background:none; border:1px solid rgba(255,255,255,.75); color:#fff;
+    padding:6px 12px; font-size:12.5px; border-radius:var(--radius);
+    cursor:pointer; font-family:inherit; margin-left:10px;
+  }
+
+  .layout{ display:grid; grid-template-columns:330px 1fr; flex:1; min-height:0; }
+  @media (max-width:820px){
+    .layout{ grid-template-columns:1fr; }
+    .list-pane.hide-on-mobile{ display:none; }
+    .detail-pane.hide-on-mobile{ display:none; }
+  }
+
+  .list-pane{
+    border-right:1px solid var(--line); background:var(--panel);
+    display:flex; flex-direction:column; min-height:0; overflow:hidden;
+  }
+  .search-row{
+    padding:14px; border-bottom:1px solid var(--line);
+    display:flex; flex-direction:column; gap:8px; flex-shrink:0;
+  }
+  .search-row input:not([type="checkbox"]), .search-row select{
+    width:100%; padding:9px 10px; border:1px solid var(--line);
+    border-radius:var(--radius); font-size:14px; font-family:inherit; background:#fff;
+  }
+  .search-row input:not([type="checkbox"]):focus, .search-row select:focus{
+    outline:2px solid var(--primary); outline-offset:-1px;
+  }
+  .check-label{
+    display:flex; align-items:center; gap:6px;
+    font-size:12.5px; color:var(--ink-soft); cursor:pointer;
+  }
+  .add-btn{
+    padding:9px 10px; border:1px solid var(--primary); background:var(--primary);
+    color:#fff; border-radius:var(--radius); font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  .add-btn:hover{ background:#a8641f; }
+  .secondary-btn{
+    padding:9px 10px; border:1px solid var(--line); background:#fff;
+    color:var(--primary); border-radius:var(--radius); font-size:13px;
+    cursor:pointer; font-family:inherit;
+  }
+  .secondary-btn:hover{ border-color:var(--primary); }
+  .btn-row{ display:flex; gap:8px; }
+  .btn-row .secondary-btn{ flex:1; }
+
+  .result-count{
+    font-size:11.5px; color:var(--ink-soft); padding:8px 14px 4px; flex-shrink:0;
+  }
+
+  .kid-list{ list-style:none; margin:0; padding:0; overflow-y:auto; flex:1; min-height:0; }
+  .kid-list li{
+    padding:12px 14px; border-bottom:1px solid var(--line); cursor:pointer;
+    display:flex; flex-direction:column; align-items:flex-start; gap:5px;
+  }
+  .kid-list li:hover{ background:var(--primary-soft); }
+  .kid-list li.active{ background:var(--primary-soft); border-left:3px solid var(--primary); }
+  .kid-list .name{ font-size:15px; font-weight:500; }
+  .kid-list .sub{ font-size:11px; color:var(--ink-soft); display:block; }
+  .kid-list .fac-tag{
+    font-size:10.5px; color:var(--ink-soft); border:1px solid var(--line);
+    padding:2px 8px; border-radius:20px; white-space:nowrap; align-self:flex-start;
+  }
+  .kid-list .empty{ padding:24px 14px; color:var(--ink-soft); font-size:13px; text-align:center; }
+
+  .detail-pane{ padding:24px 28px 60px; overflow-y:auto; min-height:0; }
+  .back-btn{
+    display:none; background:none; border:none; color:var(--primary);
+    font-size:14px; cursor:pointer; padding:0 0 12px; font-family:inherit;
+  }
+  @media (max-width:820px){
+    .back-btn.show{ display:block; }
+    .detail-pane{ padding-bottom:90px; }
+    .save-row{
+      position:fixed; left:0; right:0; bottom:0; margin-top:0; padding:12px 16px;
+      background:var(--panel); border-top:1px solid var(--line);
+      box-shadow:0 -4px 10px rgba(0,0,0,0.08); z-index:50;
+    }
+  }
+
+  .detail-header{
+    display:flex; gap:20px; align-items:flex-start;
+    padding-bottom:20px; border-bottom:1px solid var(--line); margin-bottom:20px;
+  }
+  .photo-box{ position:relative; width:88px; height:88px; flex-shrink:0; }
+  .avatar{
+    width:100%; height:100%; border-radius:50%;
+    background:var(--primary-soft); color:var(--primary);
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; font-weight:700; border:1px solid var(--line); overflow:hidden;
+  }
+  .avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-edit-row{ display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+  .photo-edit-row label, .photo-edit-row button{
+    font-size:10.5px; text-align:center; padding:3px 4px;
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:#fff; color:var(--primary); cursor:pointer; font-family:inherit;
+  }
+  .photo-edit-row button.remove{ color:var(--danger); }
+  .list-thumb{
+    width:30px; height:30px; border-radius:50%; object-fit:cover;
+    flex-shrink:0; border:1px solid var(--line);
+  }
+  .list-thumb-fallback{
+    width:30px; height:30px; border-radius:50%; background:var(--primary-soft);
+    color:var(--primary); display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; flex-shrink:0; border:1px solid var(--line);
+  }
+  #crop-viewport{
+    position:relative; width:260px; height:260px; margin:0 auto;
+    overflow:hidden; border-radius:50%; border:1px solid var(--line);
+    background:#e5e5e0; cursor:grab; touch-action:none;
+  }
+  #crop-viewport.dragging{ cursor:grabbing; }
+  #crop-image{
+    position:absolute; left:0; top:0; user-select:none;
+    -webkit-user-drag:none; pointer-events:none; max-width:none;
+  }
+  .crop-zoom-row{ display:flex; align-items:center; gap:8px; margin:16px auto 0; max-width:280px; }
+  .crop-zoom-row input[type="range"]{ flex:1; }
+  .crop-zoom-label{ font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+  .crop-actions{ display:flex; justify-content:center; gap:10px; margin-top:18px; }
+  .crop-actions button{
+    font-family:inherit; font-size:14px; padding:9px 20px;
+    border-radius:var(--radius); cursor:pointer;
+  }
+  .crop-actions .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
+  .crop-actions .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
+  .id-block h2{ margin:0 0 2px; font-size:22px; }
+  .id-block .sub{ color:var(--ink-soft); font-size:13px; margin-bottom:8px; display:block; }
+  .badge-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .badge{
+    font-size:11.5px; padding:3px 9px; border-radius:20px;
+    border:1px solid var(--line); color:var(--ink-soft);
+  }
+  .badge.grade{ background:var(--accent-soft); color:#57692A; border-color:transparent; }
+  .badge.status-active{ background:var(--accent-soft); color:#57692A; border-color:transparent; }
+  .badge.status-left{ background:#F5EBE5; color:var(--danger); border-color:transparent; }
+  .badge.alert-expired{ background:#F6E3DE; color:var(--danger); border-color:transparent; font-weight:700; }
+  .badge.alert-soon{ background:#FBF1D6; color:#7A5E12; border-color:transparent; font-weight:700; }
+
+  .mini-alert{
+    display:inline-block; font-size:9.5px; font-weight:700; color:#fff;
+    padding:1px 6px; border-radius:3px; margin-left:6px; vertical-align:middle;
+  }
+  .mini-alert.expired{ background:var(--danger); }
+  .mini-alert.soon{ background:var(--warn); }
+
+  .edit-toggle{
+    margin-left:auto; align-self:flex-start; background:none;
+    border:1px solid var(--line); padding:7px 14px; font-size:13px;
+    border-radius:var(--radius); cursor:pointer; color:var(--primary); font-family:inherit;
+  }
+  .edit-toggle:hover{ border-color:var(--primary); }
+
+  .tabs{ display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:22px; }
+  .tab-btn{
+    background:none; border:none; padding:10px 4px; margin-right:22px;
+    font-size:14px; color:var(--ink-soft); cursor:pointer;
+    border-bottom:2px solid transparent; font-family:inherit;
+  }
+  .tab-btn.active{ color:var(--primary); border-bottom-color:var(--primary); font-weight:500; }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .field-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px 32px; }
+  @media (max-width:600px){ .field-grid{ grid-template-columns:1fr; } }
+  .field-grid.span-2{ grid-template-columns:1fr; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:11.5px; color:var(--ink-soft); letter-spacing:.02em; }
+  .field .value{ font-size:15px; padding-bottom:6px; border-bottom:1px solid var(--line); min-height:22px; }
+  .field input, .field select{
+    font-size:15px; padding:6px 2px; border:none;
+    border-bottom:1px solid var(--primary); background:var(--primary-soft); font-family:inherit;
+  }
+  .field input:focus, .field select:focus{ outline:none; }
+
+  .section-title{
+    font-size:13px; color:var(--ink-soft); margin:28px 0 12px;
+    padding-bottom:6px; border-bottom:1px solid var(--line);
+  }
+
+  .expiry-callout{
+    padding:12px 16px; border-radius:var(--radius); font-size:13.5px;
+    margin-bottom:20px; line-height:1.6;
+  }
+  .expiry-callout.expired{ background:#F6E3DE; color:#7A2E1C; }
+  .expiry-callout.soon{ background:#FBF1D6; color:#6B5417; }
+
+  .save-row{ margin-top:28px; padding:0; display:flex; gap:10px; }
+  .save-row button{
+    font-family:inherit; font-size:14px; padding:9px 20px;
+    border-radius:var(--radius); cursor:pointer;
+  }
+  .save-row .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
+  .save-row .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
+
+  .no-selection{ color:var(--ink-soft); font-size:14px; padding:60px 20px; text-align:center; }
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(38,38,34,.35);
+    display:flex; align-items:center; justify-content:center; z-index:60;
+  }
+  .modal{
+    background:#fff; width:min(480px, 92vw); padding:24px;
+    border-radius:var(--radius); max-height:86vh; overflow-y:auto;
+  }
+  .modal h3{ margin-top:0; }
+  .modal .field{ margin-bottom:14px; }
+  .modal .field input, .modal .field select{
+    border:1px solid var(--line); background:#fff; padding:8px; border-radius:var(--radius);
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner" id="demo-banner">
+  ⚠ デモモード：クラウド未接続のため、この端末内だけの仮データで動作しています
+</div>
+
+<header class="top">
+  <div class="brand">
+    <h1>児童情報データベース</h1>
+    <span id="fac-count-label"></span>
+  </div>
+  <div>
+    <select id="facility-filter">
+      <option value="all">全事業所を表示</option>
+    </select>
+    <button class="hdr-btn" id="btn-home">← ホーム</button>
+    <button class="hdr-btn" id="btn-switch">スタッフ情報へ</button>
+    <span class="hdr-btn" id="role-badge" style="display:none; cursor:default;"></span>
+    <button class="hdr-btn" id="logout-btn" style="display:none;">ログアウト</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="list-pane" id="list-pane">
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="氏名・フリガナ・学校名で検索">
+      <select id="status-filter">
+        <option value="active">在籍児のみ表示</option>
+        <option value="all">全員表示（退所児含む）</option>
+        <option value="left">退所児のみ表示</option>
+      </select>
+      <label class="check-label">
+        <input type="checkbox" id="expiry-only" style="width:auto;">
+        受給者証の期限が近い児童のみ
+      </label>
+      <button class="add-btn" id="open-add-modal">＋ 児童を新規追加</button>
+      <div class="btn-row">
+        <button class="secondary-btn" id="download-template">テンプレートDL</button>
+        <button class="secondary-btn" id="open-import">Excelから取込</button>
+      </div>
+      <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
+      <div style="border-top:1px solid var(--line); margin-top:4px; padding-top:10px;">
+        <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">帳票の出力（事業所ごと）</div>
+        <div class="btn-row" style="margin-bottom:8px;">
+          <button class="secondary-btn" id="export-checklist">チェックリスト</button>
+          <button class="secondary-btn" id="export-birthday">誕生日リスト</button>
+        </div>
+        <button class="secondary-btn" id="export-address" style="width:100%;">住所録</button>
+      </div>
+      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
+    </div>
+    <div id="result-count" class="result-count"></div>
+    <ul class="kid-list" id="kid-list"></ul>
+  </aside>
+
+  <section class="detail-pane" id="detail-pane">
+    <button class="back-btn" id="back-btn">← 一覧に戻る</button>
+    <div id="detail-content">
+      <div class="no-selection">左の一覧から児童を選択してください</div>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <h3>児童の新規登録</h3>
+    <div class="field"><label>氏名</label><input id="m-name" placeholder="山田 花子"></div>
+    <div class="field"><label>フリガナ</label><input id="m-kana" placeholder="ヤマダ ハナコ"></div>
+    <div class="field"><label>生年月日</label><input id="m-birthday" type="date"></div>
+    <div class="field"><label>性別</label>
+      <select id="m-gender"><option value="">未選択</option><option>男性</option><option>女性</option></select>
+    </div>
+    <div class="field"><label>所属事業所</label><select id="m-facility"></select></div>
+    <div class="field"><label>学校</label><input id="m-school" placeholder="○○小学校"></div>
+    <div class="field"><label>通所受給者証番号</label><input id="m-certno" placeholder="半角数字"></div>
+    <div class="field"><label>契約開始日</label><input id="m-start" type="date"></div>
+    <div class="save-row">
+      <button class="save" id="m-save">登録する</button>
+      <button class="cancel" id="m-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="login-overlay" style="display:none;">
+  <div class="modal">
+    <h3>ログイン</h3>
+    <div class="field"><label>メールアドレス</label><input id="login-email" type="email" placeholder="staff@example.com"></div>
+    <div class="field"><label>パスワード</label><input id="login-password" type="password"></div>
+    <div class="save-row">
+      <button class="save" id="login-btn">ログイン</button>
+    </div>
+    <p id="login-error" style="color:var(--danger); font-size:13px; display:none; margin-top:4px;"></p>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="crop-modal-backdrop" style="display:none;">
+  <div class="modal" style="text-align:center;">
+    <h3>写真の位置を調整</h3>
+    <div id="crop-viewport"><img id="crop-image" alt=""></div>
+    <div class="crop-zoom-row">
+      <span class="crop-zoom-label">縮小</span>
+      <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1">
+      <span class="crop-zoom-label">拡大</span>
+    </div>
+    <div class="crop-actions">
+      <button class="save" id="crop-confirm">この範囲で使う</button>
+      <button class="cancel" id="crop-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== クラウド接続設定 =====================
+// Supabaseプロジェクトの Project URL と Publishable key。
+// 未設定のままだとデモモード（この端末内だけの仮データ）で動作します。
+const SUPABASE_URL = 'https://abfzvigpxdogsxxtfrvk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_ZI27NjYkmAC-XbCxVVsqTw_2Rla1Je8';
+
+function isSupabaseConfigured(){
+  return SUPABASE_URL && !SUPABASE_URL.includes('ここに') &&
+         SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('ここに');
+}
+const supabaseClient = isSupabaseConfigured()
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+let currentUserRole = 'editor'; // デモモード時は編集可扱い
+
+// ===================== マスタ =====================
+const FACILITIES = [
+  "きたせんじゅステップ","きたせんじゅステップ第2","きたせんじゅステップ第3",
+  "きたせんじゅステップ第4","きたせんじゅステップ第5","おだいステップ",
+  "こいわステップ","こいわステップ第2","こいわステップ第3","ほきまステップ"
+];
+const MUNICIPALITIES = ["足立区","荒川区","北区","墨田区","台東区","その他"];
+const DISABILITY_TYPES = [
+  "1：身体障害","2：知的障害","3：精神障害（発達障害を含む）",
+  "4：難病患者等","5：難病患者等"
+];
+const SUPPORT_LEVELS = ["該当なし","該当あり","重度"];
+const MONTHLY_CAPS = ["0","4,600","37,200"];
+const PICKUP_TIMES = ["15:00","17:00","18:00"];
+const RELATIONS = ["母","父","祖母","祖父","その他"];
+
+// 4月1日時点の年齢 → 学年（既存の学年対応表と同じ）
+const GRADE_MAP = {
+  3:'年小', 4:'年中', 5:'年長',
+  6:'小学校1年生', 7:'小学校2年生', 8:'小学校3年生',
+  9:'小学校4年生', 10:'小学校5年生', 11:'小学校6年生',
+  12:'中学校1年生', 13:'中学校2年生', 14:'中学校3年生',
+  15:'高等学校1年生', 16:'高等学校2年生', 17:'高等学校3年生'
+};
+
+// ===================== サンプルデータ（仮） =====================
+let children = [
+  {
+    id:'C00001', name:'佐藤 陽向', kana:'サトウ ヒナタ',
+    birthday:'2014-05-12', gender:'男性', school:'足立区立千寿小学校',
+    facility:'きたせんじゅステップ第3', status:'在籍中',
+    zip:'120-0034', address:'東京都足立区千住1-2-3',
+    phoneHome:'03-1234-5678',
+    rel1:'母', phone1:'090-1111-2222', rel2:'', phone2:'', rel3:'', phone3:'',
+    priorityContact:'連絡先1',
+    contractStart:'2022-04-01', contractEnd:'', daysPerMonth:'23',
+    pickup:'17:00', diagnosis:'ASD',
+    certNo:'6012345678', municipality:'足立区',
+    certStart:'2026-04-01', certEnd:'2027-03-31',
+    grantAmount:'23', contractDays:'23', monthlyCap:'4,600',
+    disabilityType:'2：知的障害', severeBehavior:'該当なし',
+    individualSupport:'該当なし', capManageFacility:'きたせんじゅステップ第3',
+    otherFacility1:'', otherFacility2:''
+  },
+  {
+    id:'C00002', name:'鈴木 葵', kana:'スズキ アオイ',
+    birthday:'2017-09-03', gender:'女性', school:'足立区立梅島小学校',
+    facility:'おだいステップ', status:'在籍中',
+    zip:'120-0011', address:'東京都足立区中央本町2-5-1',
+    phoneHome:'',
+    rel1:'母', phone1:'080-3333-4444', rel2:'父', phone2:'080-5555-6666', rel3:'', phone3:'',
+    priorityContact:'連絡先1',
+    contractStart:'2024-06-01', contractEnd:'', daysPerMonth:'12',
+    pickup:'15:00', diagnosis:'ダウン症',
+    certNo:'6023456789', municipality:'足立区',
+    certStart:'2025-11-01', certEnd:'2026-10-31',
+    grantAmount:'23', contractDays:'12', monthlyCap:'37,200',
+    disabilityType:'2：知的障害', severeBehavior:'該当なし',
+    individualSupport:'該当あり', capManageFacility:'おだいステップ',
+    otherFacility1:'放課後等デイサービスハート', otherFacility2:''
+  },
+  {
+    id:'C00003', name:'高橋 蓮', kana:'タカハシ レン',
+    birthday:'2009-01-20', gender:'男性', school:'荒川区立第一中学校',
+    facility:'こいわステップ', status:'在籍中',
+    zip:'116-0002', address:'東京都荒川区荒川3-1-8',
+    phoneHome:'03-9876-5432',
+    rel1:'祖母', phone1:'090-7777-8888', rel2:'', phone2:'', rel3:'', phone3:'',
+    priorityContact:'連絡先1',
+    contractStart:'2021-04-01', contractEnd:'', daysPerMonth:'20',
+    pickup:'18:00', diagnosis:'',
+    certNo:'5034567890', municipality:'荒川区',
+    certStart:'2024-03-01', certEnd:'2025-02-28',
+    grantAmount:'15', contractDays:'5', monthlyCap:'0',
+    disabilityType:'3：精神障害（発達障害を含む）', severeBehavior:'該当あり',
+    individualSupport:'該当あり', capManageFacility:'―',
+    otherFacility1:'つみき第2', otherFacility2:''
+  },
+  {
+    id:'C00004', name:'田村 咲希', kana:'タムラ サキ',
+    birthday:'2012-11-30', gender:'女性', school:'北区立王子小学校',
+    facility:'ほきまステップ', status:'退所',
+    zip:'114-0002', address:'東京都北区王子2-4-6',
+    phoneHome:'',
+    rel1:'母', phone1:'070-2222-3333', rel2:'', phone2:'', rel3:'', phone3:'',
+    priorityContact:'連絡先1',
+    contractStart:'2020-09-01', contractEnd:'2025-03-31', daysPerMonth:'',
+    pickup:'', diagnosis:'',
+    certNo:'0045678901', municipality:'北区',
+    certStart:'2024-09-01', certEnd:'2025-08-31',
+    grantAmount:'23', contractDays:'18', monthlyCap:'0',
+    disabilityType:'2：知的障害', severeBehavior:'該当なし',
+    individualSupport:'重度', capManageFacility:'―',
+    otherFacility1:'', otherFacility2:''
+  }
+];
+
+let activeId = null, editing = false, activeTab = 'basic';
+let tempPhoto = null;
+
+const listEl        = document.getElementById('kid-list');
+const detailContent = document.getElementById('detail-content');
+const searchInput   = document.getElementById('search-input');
+const facilityFilter= document.getElementById('facility-filter');
+const statusFilter  = document.getElementById('status-filter');
+const expiryOnly    = document.getElementById('expiry-only');
+const listPane      = document.getElementById('list-pane');
+const detailPane    = document.getElementById('detail-pane');
+const backBtn       = document.getElementById('back-btn');
+const modalBackdrop = document.getElementById('modal-backdrop');
+
+// ===================== 自動計算 =====================
+function calcAge(birthday){
+  if(!birthday) return '—';
+  const b = new Date(birthday); if(isNaN(b)) return '—';
+  const t = new Date();
+  let age = t.getFullYear() - b.getFullYear();
+  if(t.getMonth() < b.getMonth() || (t.getMonth()===b.getMonth() && t.getDate() < b.getDate())) age--;
+  return age + '歳';
+}
+
+// 4月1日時点の年齢から学年を判定
+function calcGrade(birthday){
+  if(!birthday) return '—';
+  const b = new Date(birthday); if(isNaN(b)) return '—';
+  const t = new Date();
+  const schoolYear = (t.getMonth() >= 3) ? t.getFullYear() : t.getFullYear()-1;
+  const april1 = new Date(schoolYear, 3, 1);
+  let age = april1.getFullYear() - b.getFullYear();
+  if(april1.getMonth() < b.getMonth() || (april1.getMonth()===b.getMonth() && april1.getDate() < b.getDate())) age--;
+  if(age < 3) return '未就学';
+  if(age >= 18) return '卒業';
+  return GRADE_MAP[age] || '—';
+}
+
+// 利用開始日からの継続利用年月（退所していれば契約終了日で区切る）
+function calcUsagePeriod(startDate, endDate){
+  if(!startDate) return '—';
+  const s = new Date(startDate); if(isNaN(s)) return '—';
+  let end = new Date();
+  if(endDate){
+    const e = new Date(endDate);
+    if(!isNaN(e)) end = e;
+  }
+  if(end < s) return '—';
+  let years = end.getFullYear() - s.getFullYear();
+  let months = end.getMonth() - s.getMonth();
+  if(end.getDate() < s.getDate()) months--;
+  if(months < 0){ years--; months += 12; }
+  if(years <= 0 && months <= 0) return '1ヶ月未満';
+  const parts = [];
+  if(years > 0) parts.push(years + '年');
+  if(months > 0) parts.push(months + 'ヶ月');
+  return parts.join('');
+}
+
+// 受給者証の期限判定（60日以内を「まもなく」とする）
+function certStatus(certEnd){
+  if(!certEnd) return null;
+  const d = new Date(certEnd); if(isNaN(d)) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = Math.round((d - today) / 86400000);
+  if(days < 0)  return { cls:'expired', short:'期限切れ', long:`受給者証の有効期限が ${certEnd} で切れています。更新手続きの確認が必要です。` };
+  if(days <= 60) return { cls:'soon', short:`残り${days}日`, long:`受給者証の有効期限まで残り ${days} 日です（${certEnd} まで）。更新の準備をしてください。` };
+  return null;
+}
+
+function isMobile(){ return window.innerWidth <= 820; }
+
+// ===================== 一覧 =====================
+function initOptions(){
+  FACILITIES.forEach(f=>{
+    facilityFilter.insertAdjacentHTML('beforeend', `<option>${f}</option>`);
+    document.getElementById('m-facility').insertAdjacentHTML('beforeend', `<option>${f}</option>`);
+  });
+  document.getElementById('fac-count-label').textContent = `全${FACILITIES.length}事業所`;
+}
+
+function renderList(){
+  const q = searchInput.value.trim();
+  const fac = facilityFilter.value;
+  const st = statusFilter.value;
+  const expOnly = expiryOnly.checked;
+
+  listEl.innerHTML = '';
+  const filtered = children.filter(c=>{
+    const matchQ = !q || c.name.includes(q) || c.kana.includes(q) || (c.school||'').includes(q);
+    const matchFac = fac === 'all' || c.facility === fac;
+    let matchSt = true;
+    if(st === 'active') matchSt = c.status !== '退所';
+    else if(st === 'left') matchSt = c.status === '退所';
+    const matchExp = !expOnly || !!certStatus(c.certEnd);
+    return matchQ && matchFac && matchSt && matchExp;
+  });
+
+  document.getElementById('result-count').textContent =
+    `${filtered.length}名を表示中（全${children.length}名）`;
+
+  if(filtered.length === 0){
+    listEl.innerHTML = '<li class="empty">該当する児童がいません</li>';
+    return;
+  }
+
+  filtered.forEach(c=>{
+    const li = document.createElement('li');
+    li.className = c.id === activeId ? 'active' : '';
+    const cs = certStatus(c.certEnd);
+    const thumb = c.photo
+      ? `<img class="list-thumb" src="${c.photo}">`
+      : `<div class="list-thumb-fallback">${c.name.charAt(0)}</div>`;
+    li.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        ${thumb}
+        <div>
+        <span class="name">${c.name}</span>
+        ${cs ? `<span class="mini-alert ${cs.cls}">${cs.cls==='expired'?'期限切れ':'期限間近'}</span>` : ''}
+        <span class="sub">${c.kana}　/　${calcGrade(c.birthday)}</span>
+        </div>
+      </div>
+      <span class="fac-tag">${c.facility}</span>
+    `;
+    li.addEventListener('click', ()=>selectChild(c.id));
+    listEl.appendChild(li);
+  });
+}
+
+function selectChild(id){
+  activeId = id; editing = false; activeTab = 'basic'; tempPhoto = null; pendingPhotoFile = null;
+  renderList(); renderDetail();
+  if(isMobile()){
+    listPane.classList.add('hide-on-mobile');
+    detailPane.classList.remove('hide-on-mobile');
+    backBtn.classList.add('show');
+  }
+}
+
+backBtn.addEventListener('click', ()=>{
+  listPane.classList.remove('hide-on-mobile');
+  detailPane.classList.add('hide-on-mobile');
+  backBtn.classList.remove('show');
+});
+
+// ===================== 詳細 =====================
+function field(label, obj, key, type='text'){
+  if(editing){
+    return `<div class="field"><label>${label}</label><input data-field="${key}" type="${type}" value="${obj[key] ?? ''}"></div>`;
+  }
+  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
+}
+function selectField(label, obj, key, options){
+  if(editing){
+    const opts = ['<option value=""></option>']
+      .concat(options.map(o=>`<option ${o===obj[key]?'selected':''}>${o}</option>`)).join('');
+    return `<div class="field"><label>${label}</label><select data-field="${key}">${opts}</select></div>`;
+  }
+  return `<div class="field"><label>${label}</label><div class="value">${obj[key] || '—'}</div></div>`;
+}
+function derivedField(label, value){
+  return `<div class="field"><label>${label}</label><div class="value">${value}</div></div>`;
+}
+
+function renderDetail(){
+  const c = children.find(x=>x.id === activeId);
+  if(!c){
+    detailContent.innerHTML = '<div class="no-selection">左の一覧から児童を選択してください</div>';
+    return;
+  }
+  if(currentUserRole !== 'editor'){ editing = false; }
+  const cs = certStatus(c.certEnd);
+  const currentPhoto = tempPhoto === 'REMOVE' ? null : (tempPhoto || c.photo);
+
+  detailContent.innerHTML = `
+    <div class="detail-header">
+      <div class="photo-box">
+        <div class="avatar">${currentPhoto ? `<img src="${currentPhoto}">` : c.name.charAt(0)}</div>
+        ${editing ? `
+        <div class="photo-edit-row">
+          <label for="photo-input">写真を選択</label>
+          ${currentPhoto ? '<button type="button" class="remove" id="photo-remove-btn">削除</button>' : ''}
+        </div>
+        <input type="file" id="photo-input" accept="image/*" style="display:none;">` : ''}
+      </div>
+      <div class="id-block">
+        <h2>${c.name}</h2>
+        <span class="sub">${c.kana}　/　児童番号：${c.id}</span>
+        <div class="badge-row">
+          <span class="badge grade">${calcGrade(c.birthday)}</span>
+          <span class="badge">${calcAge(c.birthday)}</span>
+          <span class="badge ${c.status==='退所'?'status-left':'status-active'}">${c.status}</span>
+          ${cs ? `<span class="badge alert-${cs.cls}">受給者証 ${cs.short}</span>` : ''}
+        </div>
+      </div>
+      <button class="edit-toggle" id="edit-toggle" style="${currentUserRole==='editor' ? '' : 'display:none;'}">${editing ? '編集を終了' : '編集する'}</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>
+      <button class="tab-btn ${activeTab==='use'?'active':''}" data-tab="use">利用情報</button>
+      <button class="tab-btn ${activeTab==='cert'?'active':''}" data-tab="cert">受給者証</button>
+    </div>
+
+    <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
+      <div class="field-grid">
+        ${field('生年月日', c, 'birthday', 'date')}
+        ${derivedField('年齢', calcAge(c.birthday))}
+        ${derivedField('学年（自動判定）', calcGrade(c.birthday))}
+        ${selectField('性別', c, 'gender', ['男性','女性'])}
+        ${field('学校', c, 'school')}
+      </div>
+      <p class="section-title">住所・連絡先</p>
+      <div class="field-grid">
+        ${field('郵便番号', c, 'zip')}
+        ${field('住所', c, 'address')}
+        ${field('自宅電話', c, 'phoneHome')}
+        ${selectField('優先連絡先', c, 'priorityContact', ['自宅電話','連絡先1','連絡先2','連絡先3'])}
+      </div>
+      <div class="field-grid" style="margin-top:20px;">
+        ${selectField('連絡先1 続柄', c, 'rel1', RELATIONS)}
+        ${field('連絡先1 電話番号', c, 'phone1')}
+        ${selectField('連絡先2 続柄', c, 'rel2', RELATIONS)}
+        ${field('連絡先2 電話番号', c, 'phone2')}
+        ${selectField('連絡先3 続柄', c, 'rel3', RELATIONS)}
+        ${field('連絡先3 電話番号', c, 'phone3')}
+      </div>
+    </div>
+
+    <div class="tab-panel ${activeTab==='use'?'active':''}" data-panel="use">
+      <div class="field-grid">
+        ${selectField('所属事業所', c, 'facility', FACILITIES)}
+        ${selectField('在籍状況', c, 'status', ['在籍中','退所'])}
+        ${field('契約開始日', c, 'contractStart', 'date')}
+        ${c.status === '退所' ? field('契約終了日', c, 'contractEnd', 'date') : ''}
+        ${derivedField('継続利用年月', calcUsagePeriod(c.contractStart, c.status === '退所' ? c.contractEnd : ''))}
+        ${field('日数／月', c, 'daysPerMonth')}
+        ${selectField('送り便', c, 'pickup', PICKUP_TIMES)}
+        ${field('診断名', c, 'diagnosis')}
+      </div>
+    </div>
+
+    <div class="tab-panel ${activeTab==='cert'?'active':''}" data-panel="cert">
+      ${cs ? `<div class="expiry-callout ${cs.cls}">${cs.long}</div>` : ''}
+      <div class="field-grid">
+        ${field('通所受給者証番号', c, 'certNo')}
+        ${selectField('交付自治体', c, 'municipality', MUNICIPALITIES)}
+        ${field('支給決定開始日', c, 'certStart', 'date')}
+        ${field('支給決定終了日', c, 'certEnd', 'date')}
+        ${field('支給量', c, 'grantAmount')}
+        ${field('契約日数', c, 'contractDays')}
+        ${selectField('負担上限月額', c, 'monthlyCap', MONTHLY_CAPS)}
+        ${selectField('障害種別', c, 'disabilityType', DISABILITY_TYPES)}
+        ${selectField('強度行動障害', c, 'severeBehavior', ['該当なし','該当あり'])}
+        ${selectField('個別サポート（Ⅰ）', c, 'individualSupport', SUPPORT_LEVELS)}
+      </div>
+      <p class="section-title">上限管理・併用</p>
+      <div class="field-grid">
+        ${field('上限管理事業所', c, 'capManageFacility')}
+        ${field('併用施設①', c, 'otherFacility1')}
+        ${field('併用施設②', c, 'otherFacility2')}
+      </div>
+    </div>
+
+    ${editing ? `
+    <div class="save-row">
+      <button class="save" id="save-btn">保存する</button>
+      <button class="cancel" id="cancel-btn">キャンセル</button>
+    </div>` : ''}
+  `;
+
+  document.getElementById('edit-toggle').addEventListener('click', ()=>{
+    editing = !editing; tempPhoto = null; pendingPhotoFile = null; renderDetail();
+  });
+  detailContent.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeTab = btn.dataset.tab;
+      detailContent.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      detailContent.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      detailContent.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`).classList.add('active');
+    });
+  });
+
+  if(editing){
+    document.getElementById('save-btn').addEventListener('click', async ()=>{
+      let updatedRef = null;
+      children = children.map(x=>{
+        if(x.id !== c.id) return x;
+        const u = {...x};
+        detailContent.querySelectorAll('[data-field]').forEach(inp=>{ u[inp.dataset.field] = inp.value; });
+        if(tempPhoto === 'REMOVE') u.photo = null;
+        else if(tempPhoto) u.photo = tempPhoto;
+        updatedRef = u;
+        return u;
+      });
+
+      if(isSupabaseConfigured() && updatedRef){
+        if(pendingPhotoFile){
+          try{
+            updatedRef.photo = await uploadChildPhoto(pendingPhotoFile, updatedRef);
+          }catch(err){
+            alert('写真のアップロードに失敗しました：' + err.message);
+          }
+        } else if(tempPhoto === 'REMOVE'){
+          updatedRef.photo = null;
+        }
+        await updateChildInDb(updatedRef);
+      }
+
+      editing = false; tempPhoto = null; pendingPhotoFile = null;
+      renderList(); renderDetail();
+    });
+    document.getElementById('cancel-btn').addEventListener('click', ()=>{
+      editing = false; tempPhoto = null; pendingPhotoFile = null; renderDetail();
+    });
+
+    const photoInput = document.getElementById('photo-input');
+    if(photoInput){
+      photoInput.addEventListener('change', (evt)=>{
+        const f = evt.target.files[0]; if(!f) return;
+        if(f.size > 8*1024*1024){ alert('画像サイズは8MB以下にしてください'); evt.target.value=''; return; }
+        openCropModal(f); evt.target.value = '';
+      });
+    }
+    const photoRemoveBtn = document.getElementById('photo-remove-btn');
+    if(photoRemoveBtn){
+      photoRemoveBtn.addEventListener('click', ()=>{
+        tempPhoto = 'REMOVE'; pendingPhotoFile = null; renderDetail();
+      });
+    }
+  }
+}
+
+// ===================== 新規登録 =====================
+function nextChildNo(){
+  const taken = new Set(children.map(c=>c.id));
+  let max = 0;
+  taken.forEach(id=>{
+    const m = /^C(\d+)$/.exec(String(id||''));
+    if(m){ const n = parseInt(m[1],10); if(n>max) max = n; }
+  });
+  let n = max + 1, cand = 'C' + String(n).padStart(5,'0');
+  while(taken.has(cand)){ n++; cand = 'C' + String(n).padStart(5,'0'); }
+  return cand;
+}
+
+document.getElementById('open-add-modal').addEventListener('click', ()=>{
+  modalBackdrop.style.display = 'flex';
+});
+document.getElementById('m-cancel').addEventListener('click', ()=>{
+  modalBackdrop.style.display = 'none';
+});
+document.getElementById('m-save').addEventListener('click', async ()=>{
+  const name = document.getElementById('m-name').value.trim();
+  if(!name){ alert('氏名を入力してください'); return; }
+  const id = nextChildNo();
+  children.push({
+    id, name,
+    kana: document.getElementById('m-kana').value.trim(),
+    birthday: document.getElementById('m-birthday').value,
+    gender: document.getElementById('m-gender').value,
+    school: document.getElementById('m-school').value.trim(),
+    facility: document.getElementById('m-facility').value || FACILITIES[0],
+    status:'在籍中',
+    zip:'', address:'', phoneHome:'',
+    rel1:'', phone1:'', rel2:'', phone2:'', rel3:'', phone3:'',
+    priorityContact:'',
+    contractStart: document.getElementById('m-start').value, contractEnd:'',
+    daysPerMonth:'', pickup:'', diagnosis:'',
+    certNo: document.getElementById('m-certno').value.trim(),
+    municipality:'', certStart:'', certEnd:'',
+    grantAmount:'', contractDays:'', monthlyCap:'',
+    disabilityType:'', severeBehavior:'', individualSupport:'',
+    capManageFacility:'', otherFacility1:'', otherFacility2:''
+  });
+  modalBackdrop.style.display = 'none';
+  ['m-name','m-kana','m-birthday','m-school','m-certno','m-start']
+    .forEach(i=>document.getElementById(i).value='');
+  document.getElementById('m-gender').value = '';
+  renderList(); selectChild(id);
+  if(isSupabaseConfigured()){
+    await insertChildToDb(children[children.length-1]);
+  }
+});
+
+// ===================== Excel =====================
+const TEMPLATE_HEADERS = [
+  '氏名','フリガナ','児童番号','生年月日','性別','学校','所属事業所','在籍状況',
+  '郵便番号','住所','自宅電話','優先連絡先',
+  '連絡先1続柄','連絡先1電話','連絡先2続柄','連絡先2電話','連絡先3続柄','連絡先3電話',
+  '契約開始日','契約終了日','日数／月','送り便','診断名',
+  '通所受給者証番号','交付自治体','支給決定開始日','支給決定終了日',
+  '支給量','契約日数','負担上限月額','障害種別','強度行動障害','個別サポート（Ⅰ）',
+  '上限管理事業所','併用施設①','併用施設②'
+];
+const KEY_ORDER = [
+  'name','kana','id','birthday','gender','school','facility','status',
+  'zip','address','phoneHome','priorityContact',
+  'rel1','phone1','rel2','phone2','rel3','phone3',
+  'contractStart','contractEnd','daysPerMonth','pickup','diagnosis',
+  'certNo','municipality','certStart','certEnd',
+  'grantAmount','contractDays','monthlyCap','disabilityType','severeBehavior','individualSupport',
+  'capManageFacility','otherFacility1','otherFacility2'
+];
+const HEADER_TO_KEY = {};
+TEMPLATE_HEADERS.forEach((h,i)=>{ HEADER_TO_KEY[h] = KEY_ORDER[i]; });
+const DATE_KEYS = ['birthday','contractStart','contractEnd','certStart','certEnd'];
+
+function excelDateToStr(v){
+  if(v instanceof Date && !isNaN(v)){
+    return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  }
+  return v ?? '';
+}
+
+document.getElementById('download-template').addEventListener('click', ()=>{
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS]);
+  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
+  XLSX.utils.book_append_sheet(wb, ws, '児童一覧');
+  XLSX.writeFile(wb, '児童情報_取込テンプレート.xlsx');
+});
+
+document.getElementById('export-all').addEventListener('click', ()=>{
+  if(children.length === 0){ alert('書き出すデータがありません。'); return; }
+  const rows = children.map(c => KEY_ORDER.map(k => c[k] ?? ''));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...rows]);
+  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
+  XLSX.utils.book_append_sheet(wb, ws, '児童一覧');
+  XLSX.writeFile(wb, `児童一覧_${new Date().toISOString().slice(0,10)}.xlsx`);
+});
+
+document.getElementById('open-import').addEventListener('click', ()=>{
+  document.getElementById('excel-input').click();
+});
+document.getElementById('excel-input').addEventListener('change', (evt)=>{
+  const file = evt.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:''});
+      let imported = 0, skipped = 0;
+      const newly = [];
+      rows.forEach(row=>{
+        const c = {};
+        KEY_ORDER.forEach(k=>{ c[k] = ''; });
+        c.facility = FACILITIES[0]; c.status = '在籍中';
+        Object.entries(row).forEach(([h,v])=>{
+          const key = HEADER_TO_KEY[String(h).trim()];
+          if(!key) return;
+          c[key] = DATE_KEYS.includes(key) ? excelDateToStr(v) : String(v ?? '').trim();
+        });
+        if(!c.name) return;
+        if(c.id){
+          if(children.some(x=>x.id === c.id)){ skipped++; return; }
+        } else {
+          c.id = nextChildNo();
+        }
+        children.push(c); newly.push(c); imported++;
+      });
+      renderList();
+      if(isSupabaseConfigured()){
+        for(const nc of newly){ await insertChildToDb(nc); }
+      }
+      let msg = `${imported}件の児童情報を取り込みました。`;
+      if(skipped > 0) msg += `\n${skipped}件は既に同じ児童番号が登録されているため、取り込みませんでした。`;
+      alert(msg);
+    } catch(err){
+      alert('ファイルの読み込みに失敗しました。テンプレートの列見出しと一致しているかご確認ください。');
+      console.error(err);
+    } finally { evt.target.value = ''; }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ===================== 写真のトリミング =====================
+let pendingPhotoFile = null;
+let cropState = null;
+const CROP_VIEWPORT = 260, CROP_OUTPUT = 480;
+
+function openCropModal(file){
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const img = document.getElementById('crop-image');
+    img.onload = ()=>{
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      const minScale = Math.max(CROP_VIEWPORT/nw, CROP_VIEWPORT/nh);
+      cropState = { nw, nh, minScale, scale:minScale,
+        offsetX:(CROP_VIEWPORT-nw*minScale)/2, offsetY:(CROP_VIEWPORT-nh*minScale)/2 };
+      document.getElementById('crop-zoom').value = 1;
+      applyCropTransform();
+      document.getElementById('crop-modal-backdrop').style.display = 'flex';
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function applyCropTransform(){
+  const img = document.getElementById('crop-image');
+  img.style.width = (cropState.nw*cropState.scale)+'px';
+  img.style.height = (cropState.nh*cropState.scale)+'px';
+  img.style.transform = `translate(${cropState.offsetX}px, ${cropState.offsetY}px)`;
+}
+function clampCropOffset(){
+  const w = cropState.nw*cropState.scale, h = cropState.nh*cropState.scale;
+  cropState.offsetX = Math.min(0, Math.max(CROP_VIEWPORT-w, cropState.offsetX));
+  cropState.offsetY = Math.min(0, Math.max(CROP_VIEWPORT-h, cropState.offsetY));
+}
+(function setupCrop(){
+  const vp = document.getElementById('crop-viewport');
+  let dragging=false, sx, sy, ox, oy;
+  vp.addEventListener('pointerdown', e=>{
+    if(!cropState) return;
+    dragging=true; vp.classList.add('dragging'); vp.setPointerCapture(e.pointerId);
+    sx=e.clientX; sy=e.clientY; ox=cropState.offsetX; oy=cropState.offsetY;
+  });
+  vp.addEventListener('pointermove', e=>{
+    if(!dragging||!cropState) return;
+    cropState.offsetX = ox + (e.clientX-sx);
+    cropState.offsetY = oy + (e.clientY-sy);
+    clampCropOffset(); applyCropTransform();
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>
+    vp.addEventListener(ev, ()=>{ dragging=false; vp.classList.remove('dragging'); }));
+
+  document.getElementById('crop-zoom').addEventListener('input', e=>{
+    if(!cropState) return;
+    const old = cropState.scale;
+    const ns = cropState.minScale * parseFloat(e.target.value);
+    const cx = CROP_VIEWPORT/2, cy = CROP_VIEWPORT/2;
+    cropState.offsetX = cx - ((cx-cropState.offsetX)/old)*ns;
+    cropState.offsetY = cy - ((cy-cropState.offsetY)/old)*ns;
+    cropState.scale = ns; clampCropOffset(); applyCropTransform();
+  });
+  document.getElementById('crop-cancel').addEventListener('click', ()=>{
+    document.getElementById('crop-modal-backdrop').style.display='none'; cropState=null;
+  });
+  document.getElementById('crop-confirm').addEventListener('click', ()=>{
+    if(!cropState) return;
+    const cv = document.createElement('canvas');
+    cv.width = CROP_OUTPUT; cv.height = CROP_OUTPUT;
+    const ctx = cv.getContext('2d');
+    const img = document.getElementById('crop-image');
+    const sx = -cropState.offsetX/cropState.scale;
+    const sy = -cropState.offsetY/cropState.scale;
+    const ss = CROP_VIEWPORT/cropState.scale;
+    ctx.drawImage(img, sx, sy, ss, ss, 0, 0, CROP_OUTPUT, CROP_OUTPUT);
+    tempPhoto = cv.toDataURL('image/jpeg', 0.9);
+    cv.toBlob(b=>{ pendingPhotoFile = new File([b],'photo.jpg',{type:'image/jpeg'}); }, 'image/jpeg', 0.9);
+    document.getElementById('crop-modal-backdrop').style.display='none';
+    cropState=null; renderDetail();
+  });
+})();
+
+// ===================== 帳票の出力 =====================
+function pickFacility(purpose){
+  const cur = facilityFilter.value;
+  if(cur !== 'all') return cur;
+  const list = FACILITIES.map((f,i)=>`${i+1}. ${f}`).join('\n');
+  const ans = prompt(`${purpose}を出力する事業所の番号を入力してください。\n\n${list}`, '1');
+  if(ans === null) return null;
+  const idx = parseInt(ans,10) - 1;
+  if(isNaN(idx) || idx < 0 || idx >= FACILITIES.length){ alert('番号が正しくありません。'); return null; }
+  return FACILITIES[idx];
+}
+function activeChildrenOf(fac){
+  return children
+    .filter(c => c.facility === fac && c.status !== '退所')
+    .sort((a,b)=> (a.kana||'').localeCompare(b.kana||'', 'ja'));
+}
+function today10(){ return new Date().toISOString().slice(0,10); }
+
+// --- チェックリスト（実績確認用） ---
+document.getElementById('export-checklist').addEventListener('click', ()=>{
+  const fac = pickFacility('チェックリスト'); if(!fac) return;
+  const kids = activeChildrenOf(fac);
+  if(kids.length === 0){ alert('該当する在籍児がいません。'); return; }
+
+  const header = ['No.','氏名','学年','送り便','日数／月','確認欄','備考'];
+  const rows = kids.map((c,i)=>[ i+1, c.name, calcGrade(c.birthday), c.pickup||'', c.daysPerMonth||'', '', '' ]);
+  const aoa = [
+    [`${fac}　利用児童チェックリスト`],
+    [`作成日：${today10()}　　在籍：${kids.length}名`],
+    [],
+    header,
+    ...rows
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:20},{wch:14},{wch:9},{wch:9},{wch:9},{wch:24}];
+  XLSX.utils.book_append_sheet(wb, ws, 'チェックリスト');
+  XLSX.writeFile(wb, `チェックリスト_${fac}_${today10()}.xlsx`);
+});
+
+// --- 誕生日リスト（12か月×31日のカレンダー状） ---
+document.getElementById('export-birthday').addEventListener('click', ()=>{
+  const fac = pickFacility('誕生日リスト'); if(!fac) return;
+  const kids = activeChildrenOf(fac).filter(c=>c.birthday);
+  if(kids.length === 0){ alert('生年月日が登録された在籍児がいません。'); return; }
+
+  // [日][月] のマス。同じ誕生日が複数なら「／」で連結
+  const grid = {};
+  kids.forEach(c=>{
+    const d = new Date(c.birthday); if(isNaN(d)) return;
+    const m = d.getMonth()+1, day = d.getDate();
+    const key = `${day}-${m}`;
+    grid[key] = grid[key] ? grid[key] + '／' + c.name : c.name;
+  });
+
+  const aoa = [
+    [`${fac}　誕生日一覧`],
+    [`作成日：${today10()}`],
+    ['', ...Array.from({length:12},(_,i)=>`${i+1}月`)]
+  ];
+  for(let day=1; day<=31; day++){
+    aoa.push([`${day}日`, ...Array.from({length:12},(_,i)=>grid[`${day}-${i+1}`] || '')]);
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:6}, ...Array.from({length:12},()=>({wch:16}))];
+  XLSX.utils.book_append_sheet(wb, ws, '誕生日一覧');
+
+  // 月別の一覧も添える（バースデーカード作成用）
+  const byMonth = kids.slice().sort((a,b)=>{
+    const da=new Date(a.birthday), db=new Date(b.birthday);
+    return (da.getMonth()-db.getMonth()) || (da.getDate()-db.getDate());
+  }).map(c=>{
+    const d = new Date(c.birthday);
+    return [`${d.getMonth()+1}月`, `${d.getDate()}日`, c.name, c.kana||'', calcGrade(c.birthday), c.birthday];
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet([['月','日','氏名','フリガナ','学年','生年月日'], ...byMonth]);
+  ws2['!cols'] = [{wch:6},{wch:6},{wch:20},{wch:20},{wch:14},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, ws2, '月別一覧');
+
+  XLSX.writeFile(wb, `誕生日リスト_${fac}_${today10()}.xlsx`);
+});
+
+// --- 住所録 ---
+document.getElementById('export-address').addEventListener('click', ()=>{
+  const fac = facilityFilter.value === 'all' ? null : facilityFilter.value;
+  const kids = children
+    .filter(c => c.status !== '退所' && (!fac || c.facility === fac))
+    .sort((a,b)=> (a.kana||'').localeCompare(b.kana||'', 'ja'));
+  if(kids.length === 0){ alert('該当する在籍児がいません。'); return; }
+
+  const mark = (c, label) => c.priorityContact === label ? '★' : '';
+  const rows = kids.map((c,i)=>[
+    i+1, c.name, c.kana||'', c.facility,
+    mark(c,'自宅電話') + (c.phoneHome||''),
+    c.rel1||'', mark(c,'連絡先1') + (c.phone1||''),
+    c.rel2||'', mark(c,'連絡先2') + (c.phone2||''),
+    c.rel3||'', mark(c,'連絡先3') + (c.phone3||''),
+    c.zip||'', c.address||''
+  ]);
+  const aoa = [
+    [`${fac || '全事業所'}　住所録`],
+    [`作成日：${today10()}　　★印は優先連絡先`],
+    [],
+    ['No.','氏名','フリガナ','所属事業所','自宅電話',
+     '続柄1','連絡先1','続柄2','連絡先2','続柄3','連絡先3','郵便番号','住所'],
+    ...rows
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:18},{wch:18},{wch:20},{wch:15},
+                 {wch:7},{wch:15},{wch:7},{wch:15},{wch:7},{wch:15},{wch:11},{wch:38}];
+  XLSX.utils.book_append_sheet(wb, ws, '住所録');
+  XLSX.writeFile(wb, `住所録_${fac || '全事業所'}_${today10()}.xlsx`);
+});
+
+// ===================== クラウド連携 =====================
+// アプリ内のキー名 ↔ データベースの列名の対応
+const COL_MAP = {
+  child_no:'id', name:'name', kana:'kana', birthday:'birthday', gender:'gender',
+  school:'school', photo_url:'photo', facility:'facility', status:'status',
+  contract_start:'contractStart', contract_end:'contractEnd',
+  days_per_month:'daysPerMonth', pickup:'pickup', diagnosis:'diagnosis',
+  zip:'zip', address:'address', phone_home:'phoneHome', priority_contact:'priorityContact',
+  rel1:'rel1', phone1:'phone1', rel2:'rel2', phone2:'phone2', rel3:'rel3', phone3:'phone3',
+  cert_no:'certNo', municipality:'municipality',
+  cert_start:'certStart', cert_end:'certEnd',
+  grant_amount:'grantAmount', contract_days:'contractDays', monthly_cap:'monthlyCap',
+  disability_type:'disabilityType', severe_behavior:'severeBehavior',
+  individual_support:'individualSupport', cap_manage_facility:'capManageFacility',
+  other_facility1:'otherFacility1', other_facility2:'otherFacility2'
+};
+const DB_DATE_COLS = ['birthday','contract_start','contract_end','cert_start','cert_end'];
+
+function rowToChild(row){
+  const c = { dbId: row.id };
+  Object.entries(COL_MAP).forEach(([col, key])=>{
+    c[key] = row[col] ?? (key === 'photo' ? null : '');
+  });
+  if(!c.status) c.status = '在籍中';
+  return c;
+}
+function childToRow(c){
+  const row = {};
+  Object.entries(COL_MAP).forEach(([col, key])=>{
+    let v = c[key];
+    if(DB_DATE_COLS.includes(col)) v = v || null;
+    else if(col === 'photo_url') v = v || null;
+    else v = v ?? '';
+    row[col] = v;
+  });
+  return row;
+}
+
+async function loadChildrenFromDb(){
+  const { data, error } = await supabaseClient.from('children_all').select('*');
+  if(error){ alert('データの取得に失敗しました：' + error.message); return; }
+  if(!Array.isArray(data)){ children = []; renderList(); return; }
+  children = data.map(rowToChild);
+  renderList();
+}
+
+async function insertChildToDb(c){
+  // 挿入後に読み返すと children へのSELECT権限が必要になるため、IDはこちらで発行する
+  const newId = (crypto.randomUUID) ? crypto.randomUUID() : null;
+  const payload = childToRow(c);
+  if(newId) payload.id = newId;
+  const { error } = await supabaseClient.from('children').insert(payload);
+  if(error){ alert('登録に失敗しました：' + error.message); return; }
+  c.dbId = newId;
+}
+
+async function updateChildInDb(c){
+  if(!c.dbId){ await insertChildToDb(c); return; }
+  // UPDATE は対象行を探すのにSELECT権限が要るため、専用関数を経由する
+  const { error } = await supabaseClient.rpc('update_child', {
+    p_id: c.dbId, p_data: childToRow(c)
+  });
+  if(error){ alert('更新に失敗しました：' + error.message); }
+}
+
+async function uploadChildPhoto(file, c){
+  const path = `${c.dbId || c.id}/${Date.now()}_${file.name}`;
+  const { error } = await supabaseClient.storage.from('child-photos').upload(path, file, {upsert:true});
+  if(error) throw error;
+  return supabaseClient.storage.from('child-photos').getPublicUrl(path).data.publicUrl;
+}
+
+async function checkSession(){
+  const { data } = await supabaseClient.auth.getSession();
+  if(data.session) await enterApp();
+  else document.getElementById('login-overlay').style.display = 'flex';
+}
+
+async function enterApp(){
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('logout-btn').style.display = 'inline-block';
+  await loadCurrentUserRole();
+  await loadChildrenFromDb();
+}
+
+const ROLE_LABELS = {
+  editor:'編集可能',
+  viewer_full:'閲覧のみ',
+  viewer_basic:'閲覧のみ'
+};
+
+async function loadCurrentUserRole(){
+  const { data: u } = await supabaseClient.auth.getUser();
+  const uid = u?.user?.id;
+  if(!uid){ currentUserRole = 'viewer_basic'; }
+  else {
+    const { data, error } = await supabaseClient
+      .from('user_roles').select('role').eq('user_id', uid).single();
+    currentUserRole = (!error && data) ? data.role : 'viewer_basic';
+  }
+  applyRolePermissions();
+}
+
+function applyRolePermissions(){
+  const isEditor = currentUserRole === 'editor';
+  const badge = document.getElementById('role-badge');
+  badge.style.display = 'inline-block';
+  badge.textContent = ROLE_LABELS[currentUserRole] || '閲覧のみ';
+  document.getElementById('open-add-modal').style.display = isEditor ? '' : 'none';
+  document.getElementById('open-import').style.display = isEditor ? '' : 'none';
+  document.getElementById('download-template').style.display = isEditor ? '' : 'none';
+  if(activeId) renderDetail();
+}
+
+document.getElementById('login-btn').addEventListener('click', async ()=>{
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if(error){
+    err.textContent = 'ログインに失敗しました：' + error.message;
+    err.style.display = 'block';
+    return;
+  }
+  await enterApp();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  await supabaseClient.auth.signOut();
+  children = []; activeId = null;
+  renderList();
+  detailContent.innerHTML = '<div class="no-selection">左の一覧から児童を選択してください</div>';
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('login-overlay').style.display = 'flex';
+});
+
+// ===================== 起動 =====================
+searchInput.addEventListener('input', renderList);
+facilityFilter.addEventListener('change', renderList);
+statusFilter.addEventListener('change', renderList);
+expiryOnly.addEventListener('change', renderList);
+document.getElementById('btn-home').addEventListener('click', ()=>{ location.href = 'index.html'; });
+document.getElementById('btn-switch').addEventListener('click', ()=>{ location.href = 'staff.html'; });
+
+initOptions();
+
+if(isSupabaseConfigured()){
+  document.getElementById('demo-banner').style.display = 'none';
+  checkSession();
+} else {
+  renderList();
+}
+if(isMobile()) detailPane.classList.add('hide-on-mobile');
+</script>
+</body>
+</html>
