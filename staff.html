@@ -595,7 +595,6 @@
     </select>
     <button class="logout-btn" id="export-work-format" title="施設ごとに在籍者一覧をExcelで出力します（簡易版）">勤務形態一覧を出力</button>
     <button class="logout-btn" id="btn-home">← ホーム</button>
-    <button class="logout-btn" id="btn-children">児童情報へ</button>
     <span id="role-badge" class="logout-btn" style="display:none; cursor:default;"></span>
     <button class="logout-btn" id="logout-btn" style="display:none;">ログアウト</button>
   </div>
@@ -1566,11 +1565,34 @@ async function checkSession(){
   }
 }
 
+
+// ===================== 無操作タイムアウト（30分） =====================
+let idleTimer = null;
+let sessionActive = false;
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+
+function resetIdleTimer(){
+  if(!sessionActive) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(handleIdleTimeout, IDLE_LIMIT_MS);
+}
+async function handleIdleTimeout(){
+  if(!sessionActive) return;
+  sessionActive = false;
+  document.getElementById('logout-btn').click();
+  alert('一定時間操作がなかったため、自動的にログアウトしました。再度ログインしてください。');
+}
+['mousemove','keydown','mousedown','touchstart','scroll'].forEach(ev=>
+  document.addEventListener(ev, resetIdleTimer, {passive:true})
+);
+
 async function enterApp(){
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('logout-btn').style.display = 'inline-block';
   await loadCurrentUserRole();
   await loadEmployeesFromDb();
+  sessionActive = true;
+  resetIdleTimer();
 }
 
 async function loadCurrentUserRole(){
@@ -1622,9 +1644,10 @@ document.getElementById('login-btn').addEventListener('click', async ()=>{
 });
 
 document.getElementById('btn-home').addEventListener('click', ()=>{ location.href = 'index.html'; });
-document.getElementById('btn-children').addEventListener('click', ()=>{ location.href = 'children.html'; });
 
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  sessionActive = false;
+  clearTimeout(idleTimer);
   await supabaseClient.auth.signOut();
   employees = [];
   activeId = null;

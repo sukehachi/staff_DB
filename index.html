@@ -235,6 +235,27 @@ function showLogin(){
   document.getElementById('logout-btn').style.display = 'none';
 }
 
+
+// ===================== 無操作タイムアウト（30分） =====================
+let idleTimer = null;
+let sessionActive = false;
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+
+function resetIdleTimer(){
+  if(!sessionActive) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(handleIdleTimeout, IDLE_LIMIT_MS);
+}
+async function handleIdleTimeout(){
+  if(!sessionActive) return;
+  sessionActive = false;
+  document.getElementById('logout-btn').click();
+  alert('一定時間操作がなかったため、自動的にログアウトしました。再度ログインしてください。');
+}
+['mousemove','keydown','mousedown','touchstart','scroll'].forEach(ev=>
+  document.addEventListener(ev, resetIdleTimer, {passive:true})
+);
+
 async function enterApp(){
   document.body.classList.remove('locked');
   document.getElementById('login-overlay').style.display = 'none';
@@ -253,6 +274,9 @@ async function enterApp(){
   const badge = document.getElementById('role-badge');
   badge.textContent = ROLE_LABELS[role] || '閲覧のみ';
   badge.style.display = 'inline-block';
+
+  sessionActive = true;
+  resetIdleTimer();
 }
 
 document.getElementById('login-btn').addEventListener('click', async ()=>{
@@ -274,6 +298,8 @@ document.getElementById('login-password').addEventListener('keydown', e=>{
 });
 
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  sessionActive = false;
+  clearTimeout(idleTimer);
   await supabaseClient.auth.signOut();
   showLogin();
 });

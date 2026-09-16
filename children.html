@@ -287,7 +287,6 @@
       <option value="all">全事業所を表示</option>
     </select>
     <button class="hdr-btn" id="btn-home">← ホーム</button>
-    <button class="hdr-btn" id="btn-switch">スタッフ情報へ</button>
     <span class="hdr-btn" id="role-badge" style="display:none; cursor:default;"></span>
     <button class="hdr-btn" id="logout-btn" style="display:none;">ログアウト</button>
   </div>
@@ -1246,11 +1245,34 @@ async function checkSession(){
   else document.getElementById('login-overlay').style.display = 'flex';
 }
 
+
+// ===================== 無操作タイムアウト（30分） =====================
+let idleTimer = null;
+let sessionActive = false;
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+
+function resetIdleTimer(){
+  if(!sessionActive) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(handleIdleTimeout, IDLE_LIMIT_MS);
+}
+async function handleIdleTimeout(){
+  if(!sessionActive) return;
+  sessionActive = false;
+  document.getElementById('logout-btn').click();
+  alert('一定時間操作がなかったため、自動的にログアウトしました。再度ログインしてください。');
+}
+['mousemove','keydown','mousedown','touchstart','scroll'].forEach(ev=>
+  document.addEventListener(ev, resetIdleTimer, {passive:true})
+);
+
 async function enterApp(){
   document.getElementById('login-overlay').style.display = 'none';
   document.getElementById('logout-btn').style.display = 'inline-block';
   await loadCurrentUserRole();
   await loadChildrenFromDb();
+  sessionActive = true;
+  resetIdleTimer();
 }
 
 const ROLE_LABELS = {
@@ -1297,6 +1319,8 @@ document.getElementById('login-btn').addEventListener('click', async ()=>{
 });
 
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  sessionActive = false;
+  clearTimeout(idleTimer);
   await supabaseClient.auth.signOut();
   children = []; activeId = null;
   renderList();
@@ -1311,7 +1335,6 @@ facilityFilter.addEventListener('change', renderList);
 statusFilter.addEventListener('change', renderList);
 expiryOnly.addEventListener('change', renderList);
 document.getElementById('btn-home').addEventListener('click', ()=>{ location.href = 'index.html'; });
-document.getElementById('btn-switch').addEventListener('click', ()=>{ location.href = 'staff.html'; });
 
 initOptions();
 
