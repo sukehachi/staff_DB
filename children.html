@@ -256,6 +256,28 @@
 
   .no-selection{ color:var(--ink-soft); font-size:14px; padding:60px 20px; text-align:center; }
 
+  .hist-title{ font-size:13px; color:var(--ink-soft); margin:0 0 10px; letter-spacing:.02em; }
+  table.hist-table{ width:100%; border-collapse:collapse; font-size:14px; }
+  table.hist-table th{
+    text-align:left; font-size:11.5px; font-weight:500; color:var(--ink-soft);
+    border-bottom:1px solid var(--line); padding:6px 8px;
+  }
+  table.hist-table td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.hist-table input, table.hist-table select{
+    width:100%; font-size:14px; font-family:inherit;
+    border:1px solid var(--line); padding:5px 6px; border-radius:var(--radius);
+  }
+  .hist-remove{
+    background:none; border:none; color:var(--danger);
+    font-size:12.5px; cursor:pointer; font-family:inherit;
+  }
+  .hist-add{
+    margin-top:10px; background:none; border:1px dashed var(--line);
+    color:var(--primary); padding:7px 12px; font-size:13px;
+    border-radius:var(--radius); cursor:pointer; font-family:inherit;
+  }
+  .hist-add:hover{ border-color:var(--primary); }
+
   .modal-backdrop{
     position:fixed; inset:0; background:rgba(38,38,34,.35);
     display:flex; align-items:center; justify-content:center; z-index:60;
@@ -381,6 +403,16 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="genogram-modal-backdrop" style="display:none;">
+  <div class="modal" style="width:min(760px, 94vw); text-align:center;">
+    <h3>ジェノグラム（家族構成図）</h3>
+    <div id="genogram-canvas" style="overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:4px; padding:10px;"></div>
+    <div class="crop-actions">
+      <button class="cancel" id="genogram-close">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===================== クラウド接続設定 =====================
 // Supabaseプロジェクトの Project URL と Publishable key。
@@ -411,6 +443,35 @@ const DISABILITY_TYPES = [
 const SUPPORT_LEVELS = ["該当なし","該当あり","重度"];
 const MONTHLY_CAPS = ["0","4,600","37,200"];
 const PICKUP_TIMES = ["15:00","17:00","18:00"];
+
+// ジェノグラム（家族構成図）用：続柄ごとの世代・系統・性別の初期値
+// gen: 本人=0 を基準にした世代差（マイナス=年上の世代）
+// side: father＝父方に紐づく／mother＝母方に紐づく／sib＝本人と同世代／other＝自由入力
+const RELATION_PRESETS = [
+  { label:'父', gender:'男性', gen:-1, side:'father' },
+  { label:'母', gender:'女性', gen:-1, side:'mother' },
+  { label:'兄', gender:'男性', gen:0, side:'sib' },
+  { label:'姉', gender:'女性', gen:0, side:'sib' },
+  { label:'弟', gender:'男性', gen:0, side:'sib' },
+  { label:'妹', gender:'女性', gen:0, side:'sib' },
+  { label:'叔父（父方）', gender:'男性', gen:-1, side:'father' },
+  { label:'叔母（父方）', gender:'女性', gen:-1, side:'father' },
+  { label:'叔父（母方）', gender:'男性', gen:-1, side:'mother' },
+  { label:'叔母（母方）', gender:'女性', gen:-1, side:'mother' },
+  { label:'祖父（父方）', gender:'男性', gen:-2, side:'father' },
+  { label:'祖母（父方）', gender:'女性', gen:-2, side:'father' },
+  { label:'祖父（母方）', gender:'男性', gen:-2, side:'mother' },
+  { label:'祖母（母方）', gender:'女性', gen:-2, side:'mother' },
+  { label:'曽祖父（父方）', gender:'男性', gen:-3, side:'father' },
+  { label:'曽祖母（父方）', gender:'女性', gen:-3, side:'father' },
+  { label:'曽祖父（母方）', gender:'男性', gen:-3, side:'mother' },
+  { label:'曽祖母（母方）', gender:'女性', gen:-3, side:'mother' },
+  { label:'子', gender:'', gen:1, side:'sib' },
+  { label:'その他（世代を指定）', gender:'', gen:null, side:'other' }
+];
+function presetFor(relationLabel){
+  return RELATION_PRESETS.find(p => p.label === relationLabel);
+}
 const RELATIONS = ["母","父","祖母","祖父","その他"];
 
 // 4月1日時点の年齢 → 学年（既存の学年対応表と同じ）
@@ -496,6 +557,7 @@ let children = [
 
 let activeId = null, editing = false, activeTab = 'basic';
 let tempPhoto = null;
+let tempFamily = null;
 
 const listEl        = document.getElementById('kid-list');
 const detailContent = document.getElementById('detail-content');
@@ -624,7 +686,7 @@ function renderList(){
 }
 
 function selectChild(id){
-  activeId = id; editing = false; activeTab = 'basic'; tempPhoto = null; pendingPhotoFile = null;
+  activeId = id; editing = false; activeTab = 'basic'; tempPhoto = null; pendingPhotoFile = null; tempFamily = null;
   renderList(); renderDetail();
   if(isMobile()){
     listPane.classList.add('hide-on-mobile');
@@ -696,6 +758,7 @@ function renderDetail(){
       <button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>
       <button class="tab-btn ${activeTab==='use'?'active':''}" data-tab="use">利用情報</button>
       <button class="tab-btn ${activeTab==='cert'?'active':''}" data-tab="cert">受給者証</button>
+      <button class="tab-btn ${activeTab==='family'?'active':''}" data-tab="family">家族構成</button>
     </div>
 
     <div class="tab-panel ${activeTab==='basic'?'active':''}" data-panel="basic">
@@ -758,6 +821,29 @@ function renderDetail(){
       </div>
     </div>
 
+    <div class="tab-panel ${activeTab==='family'?'active':''}" data-panel="family">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <p class="section-title" style="margin:0; border:none; padding:0;">家族構成</p>
+        <button class="secondary-btn" id="show-genogram-btn">ジェノグラムを表示</button>
+      </div>
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th style="width:170px;">続柄</th>
+            <th>氏名（任意）</th>
+            <th style="width:90px;">性別</th>
+            <th style="width:70px;">同居</th>
+            <th>備考</th>
+            ${editing ? '<th style="width:50px;"></th>' : ''}
+          </tr>
+        </thead>
+        <tbody id="family-tbody">
+          ${renderFamilyRows(c)}
+        </tbody>
+      </table>
+      ${editing ? '<button class="hist-add" id="family-add-row">＋ 家族を追加</button>' : ''}
+    </div>
+
     ${editing ? `
     <div class="save-row">
       <button class="save" id="save-btn">保存する</button>
@@ -766,8 +852,19 @@ function renderDetail(){
   `;
 
   document.getElementById('edit-toggle').addEventListener('click', ()=>{
-    editing = !editing; tempPhoto = null; pendingPhotoFile = null; renderDetail();
+    editing = !editing; tempPhoto = null; pendingPhotoFile = null;
+    tempFamily = editing ? JSON.parse(JSON.stringify(c.family || [])) : null;
+    renderDetail();
   });
+
+  const genogramBtn = document.getElementById('show-genogram-btn');
+  if(genogramBtn){
+    genogramBtn.addEventListener('click', ()=>{
+      if(editing) syncTempFamilyFromInputs();
+      const familyData = editing ? tempFamily : (c.family || []);
+      openGenogramModal(c, familyData);
+    });
+  }
   detailContent.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       activeTab = btn.dataset.tab;
@@ -780,6 +877,7 @@ function renderDetail(){
 
   if(editing){
     document.getElementById('save-btn').addEventListener('click', async ()=>{
+      syncTempFamilyFromInputs();
       let updatedRef = null;
       children = children.map(x=>{
         if(x.id !== c.id) return x;
@@ -787,6 +885,7 @@ function renderDetail(){
         detailContent.querySelectorAll('[data-field]').forEach(inp=>{ u[inp.dataset.field] = inp.value; });
         if(tempPhoto === 'REMOVE') u.photo = null;
         else if(tempPhoto) u.photo = tempPhoto;
+        u.family = tempFamily;
         updatedRef = u;
         return u;
       });
@@ -804,11 +903,41 @@ function renderDetail(){
         await updateChildInDb(updatedRef);
       }
 
-      editing = false; tempPhoto = null; pendingPhotoFile = null;
+      editing = false; tempPhoto = null; pendingPhotoFile = null; tempFamily = null;
       renderList(); renderDetail();
     });
     document.getElementById('cancel-btn').addEventListener('click', ()=>{
-      editing = false; tempPhoto = null; pendingPhotoFile = null; renderDetail();
+      editing = false; tempPhoto = null; pendingPhotoFile = null; tempFamily = null; renderDetail();
+    });
+
+    const famAddBtn = document.getElementById('family-add-row');
+    if(famAddBtn){
+      famAddBtn.addEventListener('click', ()=>{
+        syncTempFamilyFromInputs();
+        tempFamily.push({relation:'父', gender:'男性', gen:-1, side:'father', name:'', coRes:true, note:''});
+        renderDetail();
+      });
+    }
+    detailContent.querySelectorAll('.hist-remove[data-fam-idx]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        syncTempFamilyFromInputs();
+        tempFamily.splice(Number(btn.dataset.famIdx), 1);
+        renderDetail();
+      });
+    });
+    detailContent.querySelectorAll('select[data-fam-field="relation"]').forEach(sel=>{
+      sel.addEventListener('change', ()=>{
+        syncTempFamilyFromInputs();
+        const idx = Number(sel.dataset.famIdx);
+        const preset = presetFor(sel.value);
+        tempFamily[idx].relation = sel.value;
+        if(preset && preset.side !== 'other'){
+          tempFamily[idx].gender = preset.gender || tempFamily[idx].gender;
+          tempFamily[idx].gen = preset.gen;
+          tempFamily[idx].side = preset.side;
+        }
+        renderDetail();
+      });
     });
 
     const photoInput = document.getElementById('photo-input');
@@ -826,6 +955,307 @@ function renderDetail(){
       });
     }
   }
+}
+
+// ===================== 家族構成（編集テーブル） =====================
+function syncTempFamilyFromInputs(){
+  const tbody = document.getElementById('family-tbody');
+  if(!tbody || !tempFamily) return;
+  tbody.querySelectorAll('[data-fam-idx]').forEach(inp=>{
+    const idx = Number(inp.dataset.famIdx);
+    const key = inp.dataset.famField;
+    if(!tempFamily[idx]) return;
+    if(!key) return;
+    if(inp.type === 'checkbox') tempFamily[idx][key] = inp.checked;
+    else if(key === 'gen') tempFamily[idx][key] = inp.value === '' ? null : Number(inp.value);
+    else tempFamily[idx][key] = inp.value;
+  });
+}
+
+function renderFamilyRows(c){
+  const rows = editing ? (tempFamily || []) : (c.family || []);
+  if(rows.length === 0){
+    return `<tr><td colspan="${editing?6:5}" style="color:var(--ink-soft); font-size:13px;">登録されている家族情報はありません</td></tr>`;
+  }
+  return rows.map((m, idx)=>{
+    if(editing){
+      const relOptions = RELATION_PRESETS.map(p=>
+        `<option value="${p.label}" ${p.label===m.relation?'selected':''}>${p.label}</option>`
+      ).join('');
+      const isOther = !presetFor(m.relation) || presetFor(m.relation).side === 'other';
+      return `<tr>
+        <td>
+          <select data-fam-idx="${idx}" data-fam-field="relation">${relOptions}</select>
+          ${isOther ? `
+          <div style="display:flex; gap:4px; margin-top:5px;">
+            <input type="number" data-fam-idx="${idx}" data-fam-field="gen" placeholder="世代差" value="${m.gen ?? ''}" style="width:70px;" title="本人を0として、上の世代はマイナス、下の世代はプラス">
+            <select data-fam-idx="${idx}" data-fam-field="side">
+              <option value="father" ${m.side==='father'?'selected':''}>父方</option>
+              <option value="mother" ${m.side==='mother'?'selected':''}>母方</option>
+              <option value="sib" ${m.side==='sib'?'selected':''}>本人と同列</option>
+            </select>
+          </div>` : ''}
+        </td>
+        <td><input type="text" data-fam-idx="${idx}" data-fam-field="name" value="${m.name||''}"></td>
+        <td>
+          <select data-fam-idx="${idx}" data-fam-field="gender">
+            <option value="" ${!m.gender?'selected':''}></option>
+            <option ${m.gender==='男性'?'selected':''}>男性</option>
+            <option ${m.gender==='女性'?'selected':''}>女性</option>
+          </select>
+        </td>
+        <td style="text-align:center;">
+          <input type="checkbox" data-fam-idx="${idx}" data-fam-field="coRes" ${m.coRes!==false?'checked':''} style="width:auto;">
+        </td>
+        <td><input type="text" data-fam-idx="${idx}" data-fam-field="note" value="${m.note||''}"></td>
+        <td><button class="hist-remove" data-fam-idx="${idx}">削除</button></td>
+      </tr>`;
+    }
+    return `<tr>
+      <td>${m.relation||''}</td>
+      <td>${m.name||''}</td>
+      <td>${m.gender||''}</td>
+      <td>${m.coRes!==false ? '同居' : '別居'}</td>
+      <td>${m.note||''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ===================== ジェノグラム（家族構成図） =====================
+function openGenogramModal(c, familyData){
+  const svg = buildGenogramSVG(c, familyData || []);
+  document.getElementById('genogram-canvas').innerHTML = svg;
+  document.getElementById('genogram-modal-backdrop').style.display = 'flex';
+}
+document.getElementById('genogram-close').addEventListener('click', ()=>{
+  document.getElementById('genogram-modal-backdrop').style.display = 'none';
+});
+
+function buildGenogramSVG(c, family){
+  const BOX_W = 104, BOX_H = 56, GAP_X = 30, ROW_GAP = 118, MARGIN = 40;
+
+  const self = { relation:'本人', name:c.name, gender:c.gender||'', gen:0, side:'self', coRes:true, isSelf:true };
+  const list = (family||[]).map(m=>({...m, gen: (m.gen===null||m.gen===undefined) ? 0 : m.gen}));
+
+  const byGen = {};
+  list.forEach(m=>{ (byGen[m.gen] = byGen[m.gen] || []).push(m); });
+  (byGen[0] = byGen[0] || []);
+
+  // 0世代：本人＋きょうだい（本人を先頭に）
+  const gen0 = [self, ...byGen[0]];
+
+  function splitSide(arr){
+    return {
+      father: arr.filter(m=>m.side==='father'),
+      mother: arr.filter(m=>m.side==='mother')
+    };
+  }
+  const gN1 = splitSide(byGen[-1] || []);
+  // -1世代：父方の兄弟姉妹は左、父は一番右（中央寄り）／母は一番左（中央寄り）、母方の兄弟姉妹は右
+  gN1.father.sort((a,b)=> (a.relation==='父'?1:0) - (b.relation==='父'?1:0));
+  gN1.mother.sort((a,b)=> (a.relation==='母'?0:1) - (b.relation==='母'?0:1));
+  const rowN1 = [...gN1.father, ...gN1.mother];
+
+  const gN2 = splitSide(byGen[-2] || []);
+  const gN3 = splitSide(byGen[-3] || []);
+  const gP1 = byGen[1] || []; // 「子」など、本人より下の世代
+
+  // その他（想定外の世代／sideがother）
+  const knownGens = new Set([-3,-2,-1,0,1]);
+  const others = list.filter(m => !knownGens.has(m.gen) || m.side === 'other');
+
+  // ---- 行ごとに横位置を割り付け ----
+  const positions = []; // {member, x, y, gen}
+  function layoutRow(members, gen, centerX){
+    if(members.length === 0) return null;
+    const w = members.length*BOX_W + (members.length-1)*GAP_X;
+    let x = centerX - w/2;
+    const y = MARGIN + (gen + 3) * ROW_GAP; // gen=-3が一番上
+    members.forEach(m=>{
+      positions.push({ member:m, x: x + BOX_W/2, y, gen });
+      x += BOX_W + GAP_X;
+    });
+    return { centerX, y };
+  }
+
+  // すべての行を同じ中心線に揃えてレイアウトする（重なりを避けるため）。
+  // 世代が離れた親子が真上に来ないケースは、線をL字に曲げてつなぐ（marriageAndDescent2）。
+  const CENTER = 0;
+  layoutRow(rowN1, -1, CENTER);
+  const fatherPos = positions.find(p=>p.member.relation==='父');
+  const motherPos = positions.find(p=>p.member.relation==='母');
+  const fatherX = fatherPos ? fatherPos.x : CENTER - BOX_W;
+  const motherX = motherPos ? motherPos.x : CENTER + BOX_W;
+
+  const row2 = [...gN2.father, ...gN2.mother];
+  if(row2.length) layoutRow(row2, -2, CENTER);
+  const gp2f = positions.filter(p=>p.gen===-2 && p.member.side==='father');
+  const gp2m = positions.filter(p=>p.gen===-2 && p.member.side==='mother');
+  const gp2fCenter = gp2f.length ? (gp2f[0].x + gp2f[gp2f.length-1].x)/2 : fatherX;
+  const gp2mCenter = gp2m.length ? (gp2m[0].x + gp2m[gp2m.length-1].x)/2 : motherX;
+
+  const row3 = [...gN3.father, ...gN3.mother];
+  if(row3.length) layoutRow(row3, -3, CENTER);
+
+  const midParents = (fatherPos && motherPos) ? (fatherX + motherX)/2 : CENTER;
+  layoutRow(gen0, 0, midParents);
+  if(gP1.length) layoutRow(gP1, 1, midParents);
+
+  if(others.length){
+    const otherY = MARGIN + (1 + (gP1.length?1:0) + 3) * ROW_GAP + 40;
+    const w = others.length*BOX_W + (others.length-1)*GAP_X;
+    let x = midParents - w/2;
+    others.forEach(m=>{
+      positions.push({ member:m, x: x + BOX_W/2, y: otherY, gen:'other' });
+      x += BOX_W + GAP_X;
+    });
+  }
+
+  // ---- 全体を正の座標に平行移動 ----
+  const minX = Math.min(...positions.map(p=>p.x)) - BOX_W/2 - MARGIN;
+  const maxX = Math.max(...positions.map(p=>p.x)) + BOX_W/2 + MARGIN;
+  const maxY = Math.max(...positions.map(p=>p.y)) + BOX_H/2 + MARGIN + 20;
+  const offsetX = -minX;
+  positions.forEach(p=> p.x += offsetX);
+  const width = maxX - minX;
+  const height = maxY;
+
+  function findPos(pred){ return positions.find(pred); }
+
+  // ---- 線（結婚線・親子線） ----
+  let lines = '';
+
+  // 父母の結婚線 → 本人・きょうだいの列へ
+  const fatherFinal = findPos(p=>p.gen===-1 && p.member.relation==='父');
+  const motherFinal = findPos(p=>p.gen===-1 && p.member.relation==='母');
+  if(fatherFinal && motherFinal){
+    const midY = fatherFinal.y;
+    const midX = (fatherFinal.x + motherFinal.x)/2;
+    lines += `<line x1="${fatherFinal.x}" y1="${midY}" x2="${motherFinal.x}" y2="${midY}" stroke="#262622" stroke-width="1.6"/>`;
+    const gen0Ys = positions.filter(p=>p.gen===0);
+    if(gen0Ys.length){
+      const dropY = gen0Ys[0].y - BOX_H/2 - 22;
+      lines += `<line x1="${midX}" y1="${midY}" x2="${midX}" y2="${dropY}" stroke="#262622" stroke-width="1.6"/>`;
+      const leftMost = Math.min(...gen0Ys.map(p=>p.x));
+      const rightMost = Math.max(...gen0Ys.map(p=>p.x));
+      lines += `<line x1="${leftMost}" y1="${dropY}" x2="${rightMost}" y2="${dropY}" stroke="#262622" stroke-width="1.6"/>`;
+      gen0Ys.forEach(p=>{
+        lines += `<line x1="${p.x}" y1="${dropY}" x2="${p.x}" y2="${p.y - BOX_H/2}" stroke="#262622" stroke-width="1.6"/>`;
+      });
+    }
+  }
+  // 父方きょうだい同士の連結（叔父叔母と父）
+  if(gN1.father.length > 1){
+    const ys = positions.filter(p=>p.gen===-1 && p.member.side==='father');
+    const y = ys[0].y - BOX_H/2 - 12;
+    const xs = ys.map(p=>p.x);
+    lines += `<line x1="${Math.min(...xs)}" y1="${y}" x2="${Math.max(...xs)}" y2="${y}" stroke="#8a8a80" stroke-width="1.2" stroke-dasharray="3,3"/>`;
+    ys.forEach(p=> lines += `<line x1="${p.x}" y1="${y}" x2="${p.x}" y2="${p.y - BOX_H/2}" stroke="#8a8a80" stroke-width="1.2" stroke-dasharray="3,3"/>`);
+  }
+  if(gN1.mother.length > 1){
+    const ys = positions.filter(p=>p.gen===-1 && p.member.side==='mother');
+    const y = ys[0].y - BOX_H/2 - 12;
+    const xs = ys.map(p=>p.x);
+    lines += `<line x1="${Math.min(...xs)}" y1="${y}" x2="${Math.max(...xs)}" y2="${y}" stroke="#8a8a80" stroke-width="1.2" stroke-dasharray="3,3"/>`;
+    ys.forEach(p=> lines += `<line x1="${p.x}" y1="${y}" x2="${p.x}" y2="${p.y - BOX_H/2}" stroke="#8a8a80" stroke-width="1.2" stroke-dasharray="3,3"/>`);
+  }
+  // 祖父母カップル → 父／母
+  marriageAndDescent2(gN2.father, fatherFinal);
+  marriageAndDescent2(gN2.mother, motherFinal);
+  marriageAndDescent2(gN3.father, gp2f.length ? {x: gp2fCenter, y: gp2f[0].y} : null);
+  marriageAndDescent2(gN3.mother, gp2m.length ? {x: gp2mCenter, y: gp2m[0].y} : null);
+
+  function marriageAndDescent2(coupleArr, childAnchor){
+    if(coupleArr.length < 1 || !childAnchor) return;
+    const ps = positions.filter(p=> coupleArr.includes(p.member));
+    if(ps.length === 0) return;
+    if(ps.length === 2){
+      lines += `<line x1="${ps[0].x}" y1="${ps[0].y}" x2="${ps[1].x}" y2="${ps[1].y}" stroke="#262622" stroke-width="1.6"/>`;
+    }
+    const midX = ps.length===2 ? (ps[0].x+ps[1].x)/2 : ps[0].x;
+    const midY = ps[0].y;
+    const dropY = childAnchor.y - BOX_H/2 - 14;
+    lines += `<line x1="${midX}" y1="${midY}" x2="${midX}" y2="${dropY}" stroke="#262622" stroke-width="1.6"/>`;
+    lines += `<line x1="${midX}" y1="${dropY}" x2="${childAnchor.x}" y2="${dropY}" stroke="#262622" stroke-width="1.6"/>`;
+    lines += `<line x1="${childAnchor.x}" y1="${dropY}" x2="${childAnchor.x}" y2="${childAnchor.y - BOX_H/2}" stroke="#262622" stroke-width="1.6"/>`;
+  }
+
+  // 本人 → 「子」世代
+  if(gP1.length){
+    const selfPos = findPos(p=>p.gen===0 && p.member.isSelf);
+    const childYs = positions.filter(p=>p.gen===1);
+    if(selfPos && childYs.length){
+      const dropY = selfPos.y + BOX_H/2 + 14;
+      lines += `<line x1="${selfPos.x}" y1="${selfPos.y+BOX_H/2}" x2="${selfPos.x}" y2="${dropY}" stroke="#262622" stroke-width="1.6"/>`;
+      childYs.forEach(p=>{
+        lines += `<line x1="${selfPos.x}" y1="${dropY}" x2="${p.x}" y2="${dropY}" stroke="#262622" stroke-width="1.6"/>`;
+        lines += `<line x1="${p.x}" y1="${dropY}" x2="${p.x}" y2="${p.y - BOX_H/2}" stroke="#262622" stroke-width="1.6"/>`;
+      });
+    }
+  }
+
+  // ---- 同居枠（点線） ----
+  const coRes = positions.filter(p=> p.member.coRes !== false && p.gen !== 'other');
+  let coResBox = '';
+  if(coRes.length > 1){
+    const pad = 22;
+    const x1 = Math.min(...coRes.map(p=>p.x)) - BOX_W/2 - pad;
+    const x2 = Math.max(...coRes.map(p=>p.x)) + BOX_W/2 + pad;
+    const y1 = Math.min(...coRes.map(p=>p.y)) - BOX_H/2 - pad;
+    const y2 = Math.max(...coRes.map(p=>p.y)) + BOX_H/2 + pad;
+    coResBox = `<rect x="${x1}" y="${y1}" width="${x2-x1}" height="${y2-y1}" rx="10" fill="none" stroke="#8a8a80" stroke-width="1.3" stroke-dasharray="6,4"/>`;
+  }
+
+  // ---- 図形 ----
+  function shapeFor(p){
+    const m = p.member;
+    const cx = p.x, cy = p.y;
+    const strokeW = m.isSelf ? 2.6 : 1.6;
+    let shape = '';
+    if(m.gender === '女性'){
+      shape = `<ellipse cx="${cx}" cy="${cy}" rx="${BOX_W/2}" ry="${BOX_H/2}" fill="#fff" stroke="#262622" stroke-width="${strokeW}"/>`;
+    } else if(m.gender === '男性'){
+      shape = `<rect x="${cx-BOX_W/2}" y="${cy-BOX_H/2}" width="${BOX_W}" height="${BOX_H}" fill="#fff" stroke="#262622" stroke-width="${strokeW}"/>`;
+    } else {
+      // 性別不明はひし形
+      const w=BOX_W/2, h=BOX_H/2;
+      shape = `<polygon points="${cx},${cy-h} ${cx+w},${cy} ${cx},${cy+h} ${cx-w},${cy}" fill="#fff" stroke="#262622" stroke-width="${strokeW}"/>`;
+    }
+    const relLabel = shortLabel(m.relation || '');
+    const nameLabel = m.name || '';
+    let text = `<text x="${cx}" y="${cy - (nameLabel?6:0)}" text-anchor="middle" dominant-baseline="central" font-size="13" font-family="'Zen Kaku Gothic New', sans-serif" fill="#262622">${escapeXml(relLabel)}</text>`;
+    if(nameLabel){
+      text += `<text x="${cx}" y="${cy+12}" text-anchor="middle" dominant-baseline="central" font-size="10.5" font-family="'Zen Kaku Gothic New', sans-serif" fill="#6B6A62">${escapeXml(nameLabel)}</text>`;
+    }
+    return shape + text;
+  }
+  function escapeXml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  // 図の中では父方／母方は位置で表現されるため、ラベルは短縮して表示する
+  function shortLabel(rel){
+    return String(rel).replace(/（父方）|（母方）/g, '').replace(/（世代を指定）/, '');
+  }
+
+  const shapes = positions.map(shapeFor).join('');
+
+  const legendY = height - 14;
+  const legend = `
+    <g font-size="11" font-family="'Zen Kaku Gothic New', sans-serif" fill="#6B6A62">
+      <rect x="${MARGIN}" y="${legendY-9}" width="16" height="12" fill="#fff" stroke="#262622" stroke-width="1.2"/>
+      <text x="${MARGIN+22}" y="${legendY-2}">男性</text>
+      <ellipse cx="${MARGIN+80}" cy="${legendY-3}" rx="9" ry="6" fill="#fff" stroke="#262622" stroke-width="1.2"/>
+      <text x="${MARGIN+96}" y="${legendY-2}">女性</text>
+      <rect x="${MARGIN+150}" y="${legendY-13}" width="20" height="20" rx="10" fill="none" stroke="#8a8a80" stroke-width="1.2" stroke-dasharray="4,3"/>
+      <text x="${MARGIN+176}" y="${legendY-2}">同居</text>
+    </g>`;
+
+  return `<svg viewBox="0 0 ${width} ${height}" width="${Math.min(width, 720)}" height="${height * Math.min(width,720)/width}" xmlns="http://www.w3.org/2000/svg">
+    ${coResBox}
+    ${lines}
+    ${shapes}
+    ${legend}
+  </svg>`;
 }
 
 // ===================== 新規登録 =====================
@@ -868,7 +1298,8 @@ document.getElementById('m-save').addEventListener('click', async ()=>{
     municipality:'', certStart:'', certEnd:'',
     grantAmount:'', contractDays:'', monthlyCap:'',
     disabilityType:'', severeBehavior:'', individualSupport:'',
-    capManageFacility:'', otherFacility1:'', otherFacility2:''
+    capManageFacility:'', otherFacility1:'', otherFacility2:'',
+    family: []
   });
   modalBackdrop.style.display = 'none';
   ['m-name','m-kana','m-birthday','m-school','m-certno','m-start']
@@ -943,7 +1374,7 @@ document.getElementById('excel-input').addEventListener('change', (evt)=>{
       rows.forEach(row=>{
         const c = {};
         KEY_ORDER.forEach(k=>{ c[k] = ''; });
-        c.facility = FACILITIES[0]; c.status = '在籍中';
+        c.facility = FACILITIES[0]; c.status = '在籍中'; c.family = [];
         Object.entries(row).forEach(([h,v])=>{
           const key = HEADER_TO_KEY[String(h).trim()];
           if(!key) return;
@@ -1181,13 +1612,15 @@ const COL_MAP = {
   grant_amount:'grantAmount', contract_days:'contractDays', monthly_cap:'monthlyCap',
   disability_type:'disabilityType', severe_behavior:'severeBehavior',
   individual_support:'individualSupport', cap_manage_facility:'capManageFacility',
-  other_facility1:'otherFacility1', other_facility2:'otherFacility2'
+  other_facility1:'otherFacility1', other_facility2:'otherFacility2',
+  family:'family'
 };
 const DB_DATE_COLS = ['birthday','contract_start','contract_end','cert_start','cert_end'];
 
 function rowToChild(row){
   const c = { dbId: row.id };
   Object.entries(COL_MAP).forEach(([col, key])=>{
+    if(key === 'family'){ c[key] = Array.isArray(row[col]) ? row[col] : []; return; }
     c[key] = row[col] ?? (key === 'photo' ? null : '');
   });
   if(!c.status) c.status = '在籍中';
@@ -1196,6 +1629,7 @@ function rowToChild(row){
 function childToRow(c){
   const row = {};
   Object.entries(COL_MAP).forEach(([col, key])=>{
+    if(col === 'family'){ row[col] = Array.isArray(c.family) ? c.family : []; return; }
     let v = c[key];
     if(DB_DATE_COLS.includes(col)) v = v || null;
     else if(col === 'photo_url') v = v || null;
