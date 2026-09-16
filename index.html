@@ -302,6 +302,8 @@ document.getElementById('logout-btn').addEventListener('click', async ()=>{
   clearTimeout(idleTimer);
   await supabaseClient.auth.signOut();
   showLogin();
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
 });
 
 // ===================== 画面遷移 =====================

@@ -1761,6 +1761,8 @@ document.getElementById('logout-btn').addEventListener('click', async ()=>{
   detailContent.innerHTML = '<div class="no-selection">左の一覧から児童を選択してください</div>';
   document.getElementById('logout-btn').style.display = 'none';
   document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
 });
 
 // ===================== 起動 =====================
