@@ -170,6 +170,29 @@
   }
   .emp-list li:hover{ background:var(--accent-soft); }
   .emp-list li.active{ background:var(--primary-soft); border-left:3px solid var(--primary); }
+  .emp-list li .select-check{ width:auto; flex-shrink:0; cursor:pointer; }
+  .bulk-action-bar{
+    display:flex; align-items:center; gap:10px;
+    padding:8px 14px; background:#FBF1D6; border-bottom:1px solid var(--line);
+    font-size:12.5px; color:#6B5417; flex-shrink:0;
+  }
+  .bulk-action-bar span{ flex:1; }
+  .bulk-delete-btn{
+    background:var(--danger); color:#fff; border:1px solid var(--danger);
+    padding:5px 12px; font-size:12px; border-radius:var(--radius);
+    cursor:pointer; font-family:inherit;
+  }
+  .bulk-clear-btn{
+    background:none; color:#6B5417; border:1px solid rgba(0,0,0,.15);
+    padding:5px 10px; font-size:12px; border-radius:var(--radius);
+    cursor:pointer; font-family:inherit;
+  }
+  .delete-toggle{
+    background:none; border:1px solid var(--danger); color:var(--danger);
+    padding:7px 14px; font-size:13px; border-radius:var(--radius);
+    cursor:pointer; font-family:inherit; margin-left:8px;
+  }
+  .delete-toggle:hover{ background:#F6E3DE; }
   .emp-list .name{ font-size:15px; font-weight:500; }
   .emp-list .kana{ font-size:11px; color:var(--ink-soft); display:block; }
   .emp-list .facility-tag{
@@ -626,6 +649,11 @@
       <div class="import-note">テンプレートの列見出しに合わせて入力したExcelファイルを取り込めます。既存データに追加されます。</div>
     </div>
     <div id="result-count" class="result-count"></div>
+    <div id="bulk-action-bar" class="bulk-action-bar" style="display:none;">
+      <span id="bulk-count-label"></span>
+      <button class="bulk-delete-btn" id="bulk-delete-btn">削除する</button>
+      <button class="bulk-clear-btn" id="bulk-clear-btn">選択解除</button>
+    </div>
     <ul class="emp-list" id="emp-list"></ul>
   </aside>
 
@@ -681,6 +709,18 @@
     <div class="save-row">
       <button class="save" id="m-save">登録する</button>
       <button class="cancel" id="m-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="delete-modal-backdrop" style="display:none;">
+  <div class="modal">
+    <h3 class="serif">本当に削除しますか？</h3>
+    <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">この操作は取り消せません。削除すると復元できません。</p>
+    <div id="delete-target-list" style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius); padding:10px 14px; margin-bottom:16px; font-size:14px;"></div>
+    <div class="save-row">
+      <button class="save" id="delete-confirm-btn" style="background:var(--danger); border-color:var(--danger);">削除する</button>
+      <button class="cancel" id="delete-cancel-btn">キャンセル</button>
     </div>
   </div>
 </div>
@@ -791,6 +831,7 @@ let currentUserRole = 'editor'; // デモモード・クラウド未接続時は
 let activeId = null;
 let editing = false;
 let activeTab = 'basic';
+let selectedIds = new Set();
 
 const listEl = document.getElementById('emp-list');
 const detailContent = document.getElementById('detail-content');
@@ -839,6 +880,7 @@ function renderList(){
     return matchesQ && matchesFac && matchesStatus && matchesEmployment && matchesNew;
   });
   document.getElementById('result-count').textContent = `${filtered.length}名を表示中（全${employees.length}名）`;
+  updateBulkBar();
   if(filtered.length === 0){
     listEl.innerHTML = '<li class="empty">該当するスタッフがいません</li>';
     return;
@@ -849,7 +891,11 @@ function renderList(){
     const thumb = e.photo
       ? `<img class="list-thumb" src="${e.photo}">`
       : `<div class="list-thumb-fallback">${e.name.charAt(0)}</div>`;
+    const checkbox = currentUserRole === 'editor'
+      ? `<input type="checkbox" class="select-check" data-select-id="${e.id}" ${selectedIds.has(e.id)?'checked':''}>`
+      : '';
     li.innerHTML = `
+      ${checkbox}
       ${thumb}
       <div style="flex:1;">
         <span class="name">${e.name}</span>
@@ -858,9 +904,32 @@ function renderList(){
       </div>
       <span class="facility-tag">${e.facility}</span>
     `;
+    const checkEl = li.querySelector('.select-check');
+    if(checkEl){
+      checkEl.addEventListener('click', (evt)=> evt.stopPropagation());
+      checkEl.addEventListener('change', (evt)=>{
+        if(evt.target.checked) selectedIds.add(e.id);
+        else selectedIds.delete(e.id);
+        updateBulkBar();
+      });
+    }
     li.addEventListener('click', ()=>selectEmployee(e.id));
     listEl.appendChild(li);
   });
+}
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulk-action-bar');
+  const label = document.getElementById('bulk-count-label');
+  // 表示から外れた（絞り込みで消えた）選択は解除しておく
+  const validIds = new Set(employees.map(e=>e.id));
+  selectedIds.forEach(id=>{ if(!validIds.has(id)) selectedIds.delete(id); });
+  if(selectedIds.size === 0){
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  label.textContent = `${selectedIds.size}件を選択中`;
 }
 
 function selectEmployee(id){
@@ -924,6 +993,7 @@ function renderDetail(){
         </div>
       </div>
       <button class="edit-toggle" id="edit-toggle" style="${currentUserRole==='editor' ? '' : 'display:none;'}">${editing ? '編集を終了' : '編集する'}</button>
+      <button class="delete-toggle" id="delete-single-btn" style="${currentUserRole==='editor' ? '' : 'display:none;'}">削除する</button>
     </div>
 
     <div class="tabs">
@@ -999,6 +1069,13 @@ function renderDetail(){
     pendingPhotoFile = null;
     renderDetail();
   });
+
+  const deleteSingleBtn = document.getElementById('delete-single-btn');
+  if(deleteSingleBtn){
+    deleteSingleBtn.addEventListener('click', ()=>{
+      openDeleteConfirm([e.id]);
+    });
+  }
 
   detailContent.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1547,6 +1624,65 @@ async function updateEmployeeInDb(emp){
   });
   if(histError){ alert('異動履歴の更新に失敗しました：' + histError.message); }
 }
+
+async function deleteEmployeesFromDb(dbIds){
+  if(!dbIds || dbIds.length === 0) return true;
+  const { error } = await supabaseClient.rpc('delete_employees', { p_ids: dbIds });
+  if(error){ alert('削除に失敗しました：' + error.message); return false; }
+  return true;
+}
+
+// ===================== 削除（確認モーダル） =====================
+let pendingDeleteIds = [];
+
+function openDeleteConfirm(ids){
+  pendingDeleteIds = ids.slice();
+  const names = ids.map(id => {
+    const emp = employees.find(x=>x.id === id);
+    return emp ? `${emp.name}（${emp.facility}）` : id;
+  });
+  document.getElementById('delete-target-list').innerHTML =
+    names.map(n => `<div>・${n}</div>`).join('');
+  document.getElementById('delete-modal-backdrop').style.display = 'flex';
+}
+
+document.getElementById('delete-cancel-btn').addEventListener('click', ()=>{
+  pendingDeleteIds = [];
+  document.getElementById('delete-modal-backdrop').style.display = 'none';
+});
+
+document.getElementById('delete-confirm-btn').addEventListener('click', async ()=>{
+  const ids = pendingDeleteIds;
+  document.getElementById('delete-modal-backdrop').style.display = 'none';
+  if(ids.length === 0) return;
+
+  if(isSupabaseConfigured()){
+    const dbIds = ids
+      .map(id => employees.find(x=>x.id === id))
+      .filter(Boolean)
+      .map(emp => emp.dbId)
+      .filter(Boolean);
+    const ok = await deleteEmployeesFromDb(dbIds);
+    if(!ok) return;
+  }
+
+  employees = employees.filter(e => !ids.includes(e.id));
+  ids.forEach(id => selectedIds.delete(id));
+  if(ids.includes(activeId)){
+    activeId = null;
+    detailContent.innerHTML = '<div class="no-selection">左の一覧からスタッフを選択してください</div>';
+  }
+  pendingDeleteIds = [];
+  renderList();
+});
+
+document.getElementById('bulk-delete-btn').addEventListener('click', ()=>{
+  openDeleteConfirm([...selectedIds]);
+});
+document.getElementById('bulk-clear-btn').addEventListener('click', ()=>{
+  selectedIds.clear();
+  renderList();
+});
 
 async function uploadPhotoToStorage(file, emp){
   const path = `${emp.dbId || emp.id}/${Date.now()}_${file.name}`;
