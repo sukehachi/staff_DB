@@ -208,6 +208,22 @@
   }
   .crop-actions .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
   .crop-actions .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
+
+  .collapsible-header{
+    display:flex; align-items:center; justify-content:space-between;
+    width:100%; background:none; border:none; padding:6px 2px;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+    letter-spacing:.02em; cursor:pointer; font-family:inherit;
+  }
+  .collapsible-header:hover{ color:var(--primary); }
+  .collapsible-header .chevron{ font-size:11px; transition:transform .15s ease; }
+  .collapsible-header.open .chevron{ transform:rotate(90deg); }
+  .collapsible-body{
+    display:flex; flex-direction:column; gap:8px;
+    padding-bottom:10px;
+  }
+  .collapsible-body.collapsed{ display:none; }
+  .collapsible + .collapsible{ border-top:1px solid var(--line); margin-top:2px; padding-top:6px; }
   .id-block h2{ margin:0 0 2px; font-size:22px; }
   .id-block .sub{ color:var(--ink-soft); font-size:13px; margin-bottom:8px; display:block; }
   .badge-row{ display:flex; gap:8px; flex-wrap:wrap; }
@@ -340,31 +356,51 @@
 <div class="layout">
   <aside class="list-pane" id="list-pane">
     <div class="search-row">
-      <input type="text" id="search-input" placeholder="氏名・フリガナ・学校名で検索">
-      <select id="status-filter">
-        <option value="active">在籍児のみ表示</option>
-        <option value="all">全員表示（退所児含む）</option>
-        <option value="left">退所児のみ表示</option>
-      </select>
-      <label class="check-label">
-        <input type="checkbox" id="expiry-only" style="width:auto;">
-        受給者証の期限が近い児童のみ
-      </label>
-      <button class="add-btn" id="open-add-modal">＋ 児童を新規追加</button>
-      <div class="btn-row">
-        <button class="secondary-btn" id="download-template">テンプレートDL</button>
-        <button class="secondary-btn" id="open-import">Excelから取込</button>
-      </div>
-      <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
-      <div style="border-top:1px solid var(--line); margin-top:4px; padding-top:10px;">
-        <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">帳票の出力（事業所ごと）</div>
-        <div class="btn-row" style="margin-bottom:8px;">
-          <button class="secondary-btn" id="export-checklist">チェックリスト</button>
-          <button class="secondary-btn" id="export-birthday">誕生日リスト</button>
+      <div class="collapsible">
+        <button class="collapsible-header open" data-target="section-search">
+          <span>検索・絞り込み</span><span class="chevron">▸</span>
+        </button>
+        <div class="collapsible-body" id="section-search">
+          <input type="text" id="search-input" placeholder="氏名・フリガナ・学校名で検索">
+          <select id="status-filter">
+            <option value="active">在籍児のみ表示</option>
+            <option value="all">全員表示（退所児含む）</option>
+            <option value="left">退所児のみ表示</option>
+          </select>
+          <label class="check-label">
+            <input type="checkbox" id="expiry-only" style="width:auto;">
+            受給者証の期限が近い児童のみ
+          </label>
         </div>
-        <button class="secondary-btn" id="export-address" style="width:100%;">住所録</button>
       </div>
-      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
+
+      <div class="collapsible">
+        <button class="collapsible-header" data-target="section-manage">
+          <span>新規登録・データ取込</span><span class="chevron">▸</span>
+        </button>
+        <div class="collapsible-body collapsed" id="section-manage">
+          <button class="add-btn" id="open-add-modal">＋ 児童を新規追加</button>
+          <div class="btn-row">
+            <button class="secondary-btn" id="download-template">テンプレートDL</button>
+            <button class="secondary-btn" id="open-import">Excelから取込</button>
+          </div>
+          <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
+          <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
+        </div>
+      </div>
+
+      <div class="collapsible">
+        <button class="collapsible-header" data-target="section-reports">
+          <span>帳票の出力（事業所ごと）</span><span class="chevron">▸</span>
+        </button>
+        <div class="collapsible-body collapsed" id="section-reports">
+          <div class="btn-row">
+            <button class="secondary-btn" id="export-checklist">チェックリスト</button>
+            <button class="secondary-btn" id="export-birthday">誕生日リスト</button>
+          </div>
+          <button class="secondary-btn" id="export-address" style="width:100%;">住所録</button>
+        </div>
+      </div>
     </div>
     <div id="result-count" class="result-count"></div>
     <div id="bulk-action-bar" class="bulk-action-bar" style="display:none;">
@@ -694,6 +730,7 @@ function renderList(){
     const matchExp = !expOnly || !!certStatus(c.certEnd);
     return matchQ && matchFac && matchSt && matchExp;
   });
+  filtered.sort((a,b)=> (a.kana||'').localeCompare(b.kana||'', 'ja'));
 
   document.getElementById('result-count').textContent =
     `${filtered.length}名を表示中（全${children.length}名）`;
@@ -1905,6 +1942,16 @@ searchInput.addEventListener('input', renderList);
 facilityFilter.addEventListener('change', renderList);
 statusFilter.addEventListener('change', renderList);
 expiryOnly.addEventListener('change', renderList);
+
+// サイドバーの折りたたみセクション
+document.querySelectorAll('.collapsible-header').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const body = document.getElementById(btn.dataset.target);
+    const willOpen = body.classList.contains('collapsed');
+    body.classList.toggle('collapsed', !willOpen);
+    btn.classList.toggle('open', willOpen);
+  });
+});
 document.getElementById('btn-home').addEventListener('click', ()=>{ location.href = 'index.html'; });
 
 initOptions();

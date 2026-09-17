@@ -599,6 +599,22 @@
   }
   .crop-actions .save{ background:var(--primary); color:#fff; border:1px solid var(--primary); }
   .crop-actions .cancel{ background:none; color:var(--ink-soft); border:1px solid var(--line); }
+
+  .collapsible-header{
+    display:flex; align-items:center; justify-content:space-between;
+    width:100%; background:none; border:none; padding:6px 2px;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+    letter-spacing:.02em; cursor:pointer; font-family:inherit;
+  }
+  .collapsible-header:hover{ color:var(--primary); }
+  .collapsible-header .chevron{ font-size:11px; transition:transform .15s ease; }
+  .collapsible-header.open .chevron{ transform:rotate(90deg); }
+  .collapsible-body{
+    display:flex; flex-direction:column; gap:8px;
+    padding-bottom:10px;
+  }
+  .collapsible-body.collapsed{ display:none; }
+  .collapsible + .collapsible{ border-top:1px solid var(--line); margin-top:2px; padding-top:6px; }
 </style>
 </head>
 <body>
@@ -626,27 +642,42 @@
 <div class="layout">
   <aside class="list-pane" id="list-pane">
     <div class="search-row">
-      <input type="text" id="search-input" placeholder="氏名・フリガナ・施設名で検索">
-      <select id="status-filter">
-        <option value="active">在籍者のみ表示</option>
-        <option value="all">全員表示（退職者含む）</option>
-        <option value="retired">退職者のみ表示</option>
-      </select>
-      <select id="employment-filter">
-        <option value="all">全雇用区分を表示</option>
-      </select>
-      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer;">
-        <input type="checkbox" id="show-new-only" style="width:auto;">
-        新人のみ表示（入社3ヶ月以内）
-      </label>
-      <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
-      <div class="btn-row">
-        <button class="secondary-btn" id="download-template">テンプレートDL</button>
-        <button class="secondary-btn" id="open-import">Excelから取込</button>
+      <div class="collapsible">
+        <button class="collapsible-header open" data-target="section-search">
+          <span>検索・絞り込み</span><span class="chevron">▸</span>
+        </button>
+        <div class="collapsible-body" id="section-search">
+          <input type="text" id="search-input" placeholder="氏名・フリガナ・施設名で検索">
+          <select id="status-filter">
+            <option value="active">在籍者のみ表示</option>
+            <option value="all">全員表示（退職者含む）</option>
+            <option value="retired">退職者のみ表示</option>
+          </select>
+          <select id="employment-filter">
+            <option value="all">全雇用区分を表示</option>
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer;">
+            <input type="checkbox" id="show-new-only" style="width:auto;">
+            新人のみ表示（入社3ヶ月以内）
+          </label>
+        </div>
       </div>
-      <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
-      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
-      <div class="import-note">テンプレートの列見出しに合わせて入力したExcelファイルを取り込めます。既存データに追加されます。</div>
+
+      <div class="collapsible">
+        <button class="collapsible-header" data-target="section-manage">
+          <span>新規登録・データ取込</span><span class="chevron">▸</span>
+        </button>
+        <div class="collapsible-body collapsed" id="section-manage">
+          <button class="add-btn" id="open-add-modal">＋ スタッフを新規追加</button>
+          <div class="btn-row">
+            <button class="secondary-btn" id="download-template">テンプレートDL</button>
+            <button class="secondary-btn" id="open-import">Excelから取込</button>
+          </div>
+          <button class="secondary-btn" id="export-all" style="width:100%;">一覧をExcelに書き出し</button>
+          <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none;">
+          <div class="import-note">テンプレートの列見出しに合わせて入力したExcelファイルを取り込めます。既存データに追加されます。</div>
+        </div>
+      </div>
     </div>
     <div id="result-count" class="result-count"></div>
     <div id="bulk-action-bar" class="bulk-action-bar" style="display:none;">
@@ -879,6 +910,7 @@ function renderList(){
     const matchesNew = !newOnly || isNewHire(e.joinDate);
     return matchesQ && matchesFac && matchesStatus && matchesEmployment && matchesNew;
   });
+  filtered.sort((a,b)=> (a.kana||'').localeCompare(b.kana||'', 'ja'));
   document.getElementById('result-count').textContent = `${filtered.length}名を表示中（全${employees.length}名）`;
   updateBulkBar();
   if(filtered.length === 0){
@@ -1300,6 +1332,16 @@ facilityFilter.addEventListener('change', renderList);
 document.getElementById('status-filter').addEventListener('change', renderList);
 document.getElementById('employment-filter').addEventListener('change', renderList);
 document.getElementById('show-new-only').addEventListener('change', renderList);
+
+// サイドバーの折りたたみセクション
+document.querySelectorAll('.collapsible-header').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const body = document.getElementById(btn.dataset.target);
+    const willOpen = body.classList.contains('collapsed');
+    body.classList.toggle('collapsed', !willOpen);
+    btn.classList.toggle('open', willOpen);
+  });
+});
 
 // --- 新規追加モーダル ---
 const modalBackdrop = document.getElementById('modal-backdrop');
