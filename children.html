@@ -138,10 +138,13 @@
   }
   .delete-toggle:hover{ background:#F6E3DE; }
   .kid-list .name{ font-size:15px; font-weight:500; }
-  .kid-list .sub{ font-size:11px; color:var(--ink-soft); display:block; }
+  .kid-list .sub{
+    font-size:11px; color:var(--ink-soft); display:block;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .kid-list .fac-tag{
     font-size:10.5px; color:var(--ink-soft); border:1px solid var(--line);
-    padding:2px 8px; border-radius:20px; white-space:nowrap; align-self:flex-start;
+    padding:2px 8px; border-radius:20px; white-space:nowrap; flex-shrink:0;
   }
   .kid-list .empty{ padding:24px 14px; color:var(--ink-soft); font-size:13px; text-align:center; }
 
@@ -571,6 +574,13 @@ const GRADE_MAP = {
   12:'中学校1年生', 13:'中学校2年生', 14:'中学校3年生',
   15:'高等学校1年生', 16:'高等学校2年生', 17:'高等学校3年生'
 };
+// 一覧では折り返し防止のため短縮表記を使う（詳細画面は上のGRADE_MAPのまま）
+const GRADE_MAP_SHORT = {
+  3:'年小', 4:'年中', 5:'年長',
+  6:'小1', 7:'小2', 8:'小3', 9:'小4', 10:'小5', 11:'小6',
+  12:'中1', 13:'中2', 14:'中3',
+  15:'高1', 16:'高2', 17:'高3'
+};
 
 // ===================== サンプルデータ（仮） =====================
 let children = [
@@ -670,18 +680,34 @@ function calcAge(birthday){
   return age + '歳';
 }
 
-// 4月1日時点の年齢から学年を判定
-function calcGrade(birthday){
-  if(!birthday) return '—';
-  const b = new Date(birthday); if(isNaN(b)) return '—';
+// 4月1日時点の年齢を算出（学年判定の共通処理）
+function _gradeAge(birthday){
+  if(!birthday) return null;
+  const b = new Date(birthday); if(isNaN(b)) return null;
   const t = new Date();
   const schoolYear = (t.getMonth() >= 3) ? t.getFullYear() : t.getFullYear()-1;
   const april1 = new Date(schoolYear, 3, 1);
   let age = april1.getFullYear() - b.getFullYear();
   if(april1.getMonth() < b.getMonth() || (april1.getMonth()===b.getMonth() && april1.getDate() < b.getDate())) age--;
+  return age;
+}
+
+// 4月1日時点の年齢から学年を判定（詳細画面など、フルの表記）
+function calcGrade(birthday){
+  const age = _gradeAge(birthday);
+  if(age === null) return '—';
   if(age < 3) return '未就学';
   if(age >= 18) return '卒業';
   return GRADE_MAP[age] || '—';
+}
+
+// 一覧用の短縮表記（例：小学校6年生 → 小6）。折り返し防止のため使用。
+function calcGradeShort(birthday){
+  const age = _gradeAge(birthday);
+  if(age === null) return '—';
+  if(age < 3) return '未就学';
+  if(age >= 18) return '卒業';
+  return GRADE_MAP_SHORT[age] || '—';
 }
 
 // 利用開始日からの継続利用年月（退所していれば契約終了日で区切る）
@@ -779,8 +805,8 @@ function renderList(){
       <div style="flex:1; min-width:0;">
         <span class="name">${c.name}</span>
         ${isNewChild(c.contractStart) ? '<span class="new-badge">NEW</span>' : ''}
-        ${cs ? `<span class="mini-alert ${cs.cls}">${cs.cls==='expired'?'期限切れ':'期限間近'}</span>` : ''}
-        <span class="sub">${c.kana}　/　${calcGrade(c.birthday)}</span>
+        ${cs ? `<span class="mini-alert ${cs.cls}">${cs.cls==='expired'?'期限切れ':'受給者証更新'}</span>` : ''}
+        <span class="sub">${c.kana}　/　${calcGradeShort(c.birthday)}</span>
       </div>
       <span class="fac-tag">${c.facility}</span>
     `;
