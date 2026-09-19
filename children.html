@@ -110,7 +110,7 @@
   .kid-list{ list-style:none; margin:0; padding:0; overflow-y:auto; flex:1; min-height:0; }
   .kid-list li{
     padding:12px 14px; border-bottom:1px solid var(--line); cursor:pointer;
-    display:flex; flex-direction:column; align-items:flex-start; gap:5px;
+    display:flex; flex-direction:row; justify-content:space-between; align-items:center; gap:8px;
   }
   .kid-list li:hover{ background:var(--primary-soft); }
   .kid-list li.active{ background:var(--primary-soft); border-left:3px solid var(--primary); }
@@ -243,6 +243,19 @@
   }
   .mini-alert.expired{ background:var(--danger); }
   .mini-alert.soon{ background:var(--warn); }
+  /* NEWバッジは受給者証アラート（赤・金）と混同しないよう、ブランドの黄緑（accent）で区別 */
+  .new-badge{
+    display:inline-block;
+    font-size:9.5px;
+    font-weight:700;
+    letter-spacing:.03em;
+    color:#fff;
+    background:var(--accent);
+    padding:1px 6px;
+    border-radius:3px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
 
   .edit-toggle{
     margin-left:auto; align-self:flex-start; background:none;
@@ -368,8 +381,8 @@
             <option value="left">退所児のみ表示</option>
           </select>
           <label class="check-label">
-            <input type="checkbox" id="expiry-only" style="width:auto;">
-            受給者証の期限が近い児童のみ
+            <input type="checkbox" id="show-new-only" style="width:auto;">
+            新規のみ表示（入所3ヶ月以内）
           </label>
         </div>
       </div>
@@ -641,7 +654,7 @@ const detailContent = document.getElementById('detail-content');
 const searchInput   = document.getElementById('search-input');
 const facilityFilter= document.getElementById('facility-filter');
 const statusFilter  = document.getElementById('status-filter');
-const expiryOnly    = document.getElementById('expiry-only');
+const showNewOnly   = document.getElementById('show-new-only');
 const listPane      = document.getElementById('list-pane');
 const detailPane    = document.getElementById('detail-pane');
 const backBtn       = document.getElementById('back-btn');
@@ -703,6 +716,15 @@ function certStatus(certEnd){
   return null;
 }
 
+function isNewChild(contractStart){
+  if(!contractStart) return false;
+  const j = new Date(contractStart);
+  if(isNaN(j)) return false;
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  return j >= ninetyDaysAgo && j <= new Date();
+}
+
 function isMobile(){ return window.innerWidth <= 820; }
 
 // ===================== 一覧 =====================
@@ -718,7 +740,7 @@ function renderList(){
   const q = searchInput.value.trim();
   const fac = facilityFilter.value;
   const st = statusFilter.value;
-  const expOnly = expiryOnly.checked;
+  const newOnly = showNewOnly.checked;
 
   listEl.innerHTML = '';
   const filtered = children.filter(c=>{
@@ -727,8 +749,8 @@ function renderList(){
     let matchSt = true;
     if(st === 'active') matchSt = c.status !== '退所';
     else if(st === 'left') matchSt = c.status === '退所';
-    const matchExp = !expOnly || !!certStatus(c.certEnd);
-    return matchQ && matchFac && matchSt && matchExp;
+    const matchNew = !newOnly || isNewChild(c.contractStart);
+    return matchQ && matchFac && matchSt && matchNew;
   });
   filtered.sort((a,b)=> (a.kana||'').localeCompare(b.kana||'', 'ja'));
 
@@ -753,13 +775,12 @@ function renderList(){
       : '';
     li.innerHTML = `
       ${checkbox}
-      <div style="display:flex; align-items:center; gap:10px;">
-        ${thumb}
-        <div>
+      ${thumb}
+      <div style="flex:1; min-width:0;">
         <span class="name">${c.name}</span>
+        ${isNewChild(c.contractStart) ? '<span class="new-badge">NEW</span>' : ''}
         ${cs ? `<span class="mini-alert ${cs.cls}">${cs.cls==='expired'?'期限切れ':'期限間近'}</span>` : ''}
         <span class="sub">${c.kana}　/　${calcGrade(c.birthday)}</span>
-        </div>
       </div>
       <span class="fac-tag">${c.facility}</span>
     `;
@@ -853,6 +874,7 @@ function renderDetail(){
           <span class="badge grade">${calcGrade(c.birthday)}</span>
           <span class="badge">${calcAge(c.birthday)}</span>
           <span class="badge ${c.status==='退所'?'status-left':'status-active'}">${c.status}</span>
+          ${isNewChild(c.contractStart) ? '<span class="new-badge" style="padding:3px 9px; font-size:11px;">NEW</span>' : ''}
           ${cs ? `<span class="badge alert-${cs.cls}">受給者証 ${cs.short}</span>` : ''}
         </div>
       </div>
@@ -1842,7 +1864,10 @@ async function uploadChildPhoto(file, c){
   const path = `${c.dbId || c.id}/${Date.now()}_${file.name}`;
   const { error } = await supabaseClient.storage.from('child-photos').upload(path, file, {upsert:true});
   if(error) throw error;
-  return supabaseClient.storage.from('child-photos').getPublicUrl(path).data.publicUrl;
+  // child-photos は非公開バケットのため、getPublicUrl ではなく長期の署名付きURLを発行する
+  const { data, error: signError } = await supabaseClient.storage.from('child-photos').createSignedUrl(path, 60 * 60 * 24 * 365 * 10); // 10年
+  if(signError) throw signError;
+  return data.signedUrl;
 }
 
 async function checkSession(){
@@ -1941,7 +1966,7 @@ document.getElementById('logout-btn').addEventListener('click', async ()=>{
 searchInput.addEventListener('input', renderList);
 facilityFilter.addEventListener('change', renderList);
 statusFilter.addEventListener('change', renderList);
-expiryOnly.addEventListener('change', renderList);
+showNewOnly.addEventListener('change', renderList);
 
 // サイドバーの折りたたみセクション
 document.querySelectorAll('.collapsible-header').forEach(btn=>{

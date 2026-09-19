@@ -1730,8 +1730,10 @@ async function uploadPhotoToStorage(file, emp){
   const path = `${emp.dbId || emp.id}/${Date.now()}_${file.name}`;
   const { error: uploadError } = await supabaseClient.storage.from('staff-photos').upload(path, file, {upsert:true});
   if(uploadError){ throw uploadError; }
-  const { data } = supabaseClient.storage.from('staff-photos').getPublicUrl(path);
-  return data.publicUrl;
+  // staff-photos は非公開バケットのため、getPublicUrl ではなく長期の署名付きURLを発行する
+  const { data, error: signError } = await supabaseClient.storage.from('staff-photos').createSignedUrl(path, 60 * 60 * 24 * 365 * 10); // 10年
+  if(signError){ throw signError; }
+  return data.signedUrl;
 }
 
 async function checkSession(){
