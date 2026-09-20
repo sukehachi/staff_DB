@@ -63,7 +63,7 @@
     cursor:pointer; font-family:inherit; margin-left:10px;
   }
 
-  .layout{ display:grid; grid-template-columns:330px 1fr; flex:1; min-height:0; }
+  .layout{ display:grid; grid-template-columns:350px 1fr; flex:1; min-height:0; }
   @media (max-width:820px){
     .layout{ grid-template-columns:1fr; }
     .list-pane.hide-on-mobile{ display:none; }
@@ -878,7 +878,7 @@ function renderDetail(){
       </div>
       <div class="id-block">
         <h2>${c.name}</h2>
-        <span class="sub">${c.kana}　/　児童番号：${c.id}</span>
+        <span class="sub">${c.kana}</span>
         <div class="badge-row">
           <span class="badge grade">${calcGrade(c.birthday)}</span>
           <span class="badge">${calcAge(c.birthday)}</span>
