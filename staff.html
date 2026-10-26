@@ -349,6 +349,30 @@
     margin-left:6px;
     vertical-align:middle;
   }
+  /* こども性暴力防止法 確認状況バッジ（NEW=金、他の色と混ざらないよう青・紫・赤茶・灰で区別） */
+  .dbs-badge{
+    display:inline-block; flex-shrink:0; white-space:nowrap;
+    font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:3px;
+    border:1px solid; line-height:1.4;
+  }
+  .dbs-badge.ok{ background:#E8F1F7; color:#2D5F82; border-color:#B9D3E4; }
+  .dbs-badge.pend{ background:#EFEAF7; color:#5B3F8C; border-color:#CFC2E6; }
+  .dbs-badge.no{ background:#FBEAE4; color:#A6462F; border-color:#EDBFB1; }
+  .dbs-badge.soon{ background:#fff; color:#2D5F82; border-color:#2D5F82; }
+  .dbs-badge.expired{ background:#A6462F; color:#fff; border-color:#A6462F; }
+  .dbs-badge.na{ background:#F1F1EA; color:#7A7A6C; border-color:#DDDDD0; }
+  .dbs-summary{ font-size:12px; color:var(--ink-soft); padding:0 14px 8px; }
+  .dbs-summary b{ color:var(--ink); }
+  .dbs-banner{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:6px; border:1px solid; margin-bottom:18px; }
+  .dbs-banner strong{ font-size:15px; }
+  .dbs-banner span{ font-size:12.5px; color:var(--ink-soft); }
+  .dbs-banner.ok{ background:#E8F1F7; border-color:#B9D3E4; } .dbs-banner.ok strong{ color:#2D5F82; }
+  .dbs-banner.pend{ background:#EFEAF7; border-color:#CFC2E6; } .dbs-banner.pend strong{ color:#5B3F8C; }
+  .dbs-banner.no,.dbs-banner.expired{ background:#FBEAE4; border-color:#EDBFB1; } .dbs-banner.no strong,.dbs-banner.expired strong{ color:#A6462F; }
+  .dbs-banner.soon{ background:#F0F5F9; border-color:#B9D3E4; } .dbs-banner.soon strong{ color:#2D5F82; }
+  .dbs-banner.na{ background:#F1F1EA; border-color:#DDDDD0; }
+  .dbs-note{ margin-top:18px; font-size:12px; color:var(--ink-soft); background:var(--accent-soft); border-radius:6px; padding:10px 14px; line-height:1.7; }
+  .tab-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--danger); margin-left:6px; vertical-align:middle; }
   .badge.status-leave{ background:#F5EBE5; color:var(--danger); border-color:transparent; }
 
   .edit-toggle{
@@ -660,6 +684,10 @@
             <input type="checkbox" id="show-new-only" style="width:auto;">
             新人のみ表示（入社3ヶ月以内）
           </label>
+          <label id="dbs-filter-wrap" style="display:none; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer;">
+            <input type="checkbox" id="show-dbs-only" style="width:auto;">
+            法確認が未了・要更新のみ表示
+          </label>
         </div>
       </div>
 
@@ -680,6 +708,7 @@
       </div>
     </div>
     <div id="result-count" class="result-count"></div>
+    <div id="dbs-summary" class="dbs-summary" style="display:none;"></div>
     <div id="bulk-action-bar" class="bulk-action-bar" style="display:none;">
       <span id="bulk-count-label"></span>
       <button class="bulk-delete-btn" id="bulk-delete-btn">削除する</button>
@@ -899,6 +928,9 @@ function renderList(){
   const statusMode = document.getElementById('status-filter').value;
   const empFilter = document.getElementById('employment-filter').value;
   const newOnly = document.getElementById('show-new-only').checked;
+  const dbsFilterWrap = document.getElementById('dbs-filter-wrap');
+  dbsFilterWrap.style.display = canSeeDbs() ? 'flex' : 'none';
+  const dbsOnly = canSeeDbs() && document.getElementById('show-dbs-only').checked;
   listEl.innerHTML = '';
   const filtered = employees.filter(e=>{
     const matchesQ = !q || e.name.includes(q) || e.kana.includes(q) || e.facility.includes(q);
@@ -908,11 +940,19 @@ function renderList(){
     else if(statusMode === 'retired') matchesStatus = e.status === '退職';
     const matchesEmployment = empFilter === 'all' || e.employment === empFilter;
     const matchesNew = !newOnly || isNewHire(e.joinDate);
-    return matchesQ && matchesFac && matchesStatus && matchesEmployment && matchesNew;
+    const matchesDbs = !dbsOnly || (e.status !== '退職' && dbsEffective(e).needs);
+    return matchesQ && matchesFac && matchesStatus && matchesEmployment && matchesNew && matchesDbs;
   });
   filtered.sort((a,b)=> (a.kana||'').localeCompare(b.kana||'', 'ja'));
   document.getElementById('result-count').textContent = `${filtered.length}名を表示中（全${employees.length}名）`;
   updateBulkBar();
+  const sumEl = document.getElementById('dbs-summary');
+  if(canSeeDbs()){
+    const target = filtered.filter(e => e.status !== '退職' && (e.dbsStatus || '未確認') !== '対象外');
+    const done = target.filter(e => !dbsEffective(e).needs).length;
+    sumEl.innerHTML = `法確認：対象<b>${target.length}</b>名中 <b>${done}</b>名 確認済（要対応 <b>${target.length - done}</b>名）`;
+    sumEl.style.display = '';
+  } else { sumEl.style.display = 'none'; }
   if(filtered.length === 0){
     listEl.innerHTML = '<li class="empty">該当するスタッフがいません</li>';
     return;
@@ -933,6 +973,7 @@ function renderList(){
         <span class="name">${e.name}</span>
         ${isNewHire(e.joinDate) ? '<span class="new-badge">NEW</span>' : ''}
         <span class="kana">${e.kana}</span>
+        ${dbsBadgeHTML(e) ? `<div style="margin-top:4px;">${dbsBadgeHTML(e)}</div>` : ''}
       </div>
       <span class="facility-tag">${e.facility}</span>
     `;
@@ -1032,6 +1073,7 @@ function renderDetail(){
       ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='basic'?'active':''}" data-tab="basic">基本情報</button>` : ''}
       <button class="tab-btn ${activeTab==='work'?'active':''}" data-tab="work">所属・勤務情報</button>
       ${currentUserRole !== 'viewer_basic' ? `<button class="tab-btn ${activeTab==='emergency'?'active':''}" data-tab="emergency">緊急連絡先</button>` : ''}
+      ${canSeeDbs() ? `<button class="tab-btn ${activeTab==='dbs'?'active':''}" data-tab="dbs">こども性暴力防止法${(e.status!=='退職' && dbsEffective(e).needs) ? '<span class="tab-dot"></span>' : ''}</button>` : ''}
     </div>
 
     ${currentUserRole !== 'viewer_basic' ? `
@@ -1084,6 +1126,22 @@ function renderDetail(){
         ${field('緊急連絡先氏名', e, 'emergencyName')}
         ${field('緊急連絡先電話番号', e, 'emergencyPhone')}
       </div>
+    </div>
+    ` : ''}
+
+    ${canSeeDbs() ? `
+    <div class="tab-panel ${activeTab==='dbs'?'active':''}" data-panel="dbs">
+      ${(()=>{ const r = dbsEffective(e); const msg = {no:'児童と接する業務に就く前に、確認の完了が必要です。', pend:'確認の手続き中です。完了したら状況と確認日を更新してください。', ok:'確認が完了しています。', soon:'次回確認の日が近づいています。', expired:'次回確認の日を過ぎています。確認を更新してください。', na:'確認の対象外として扱っています。'}[r.key];
+        return `<div class="dbs-banner ${r.key}"><strong>${r.label}</strong><span>${msg}</span></div>`; })()}
+      <div class="field-grid">
+        ${selectField('確認状況', {...e, dbsStatus: e.dbsStatus || '未確認'}, 'dbsStatus', DBS_STATUSES)}
+        ${field('確認日', e, 'dbsCheckedDate', 'date')}
+        ${field('次回確認の目安', e, 'dbsNextDate', 'date')}
+      </div>
+      <div class="field-grid span-2" style="margin-top:20px;">
+        ${field('備考', e, 'dbsNote')}
+      </div>
+      <p class="dbs-note">ここに記録するのは「確認の状況」と「日付」だけです。確認結果の中身（犯罪事実の有無など）や書類の内容は、備考を含め入力しないでください。書類は法人窓口で管理します。</p>
     </div>
     ` : ''}
 
@@ -1286,6 +1344,31 @@ function nextStaffNo(extraTaken){
   return candidate;
 }
 
+// ===== こども性暴力防止法 確認状況 =====
+const DBS_STATUSES = ['未確認','確認中','確認済','対象外'];
+function canSeeDbs(){ return currentUserRole === 'editor' || currentUserRole === 'viewer_full'; }
+// 確認済でも次回確認日が近い・過ぎている場合は表示を切り替える（30日前から「期限間近」）
+function dbsEffective(e){
+  const st = e.dbsStatus || '未確認';
+  if(st === '確認済' && e.dbsNextDate){
+    const d = new Date(e.dbsNextDate);
+    if(!isNaN(d)){
+      const now = new Date(); now.setHours(0,0,0,0);
+      const days = Math.floor((d - now) / 86400000);
+      if(days < 0) return {key:'expired', label:'期限切れ', needs:true};
+      if(days <= 30) return {key:'soon', label:'期限間近', needs:true};
+    }
+  }
+  const map = {'未確認':['no',true],'確認中':['pend',true],'確認済':['ok',false],'対象外':['na',false]};
+  const m = map[st] || map['未確認'];
+  return {key:m[0], label:st, needs:m[1]};
+}
+function dbsBadgeHTML(e){
+  if(!canSeeDbs() || e.status === '退職') return '';
+  const r = dbsEffective(e);
+  return `<span class="dbs-badge ${r.key}" title="こども性暴力防止法 確認状況">法確認：${r.label}</span>`;
+}
+
 function isNewHire(joinDate){
   if(!joinDate) return false;
   const j = new Date(joinDate);
@@ -1332,6 +1415,7 @@ facilityFilter.addEventListener('change', renderList);
 document.getElementById('status-filter').addEventListener('change', renderList);
 document.getElementById('employment-filter').addEventListener('change', renderList);
 document.getElementById('show-new-only').addEventListener('change', renderList);
+document.getElementById('show-dbs-only').addEventListener('change', renderList);
 
 // サイドバーの折りたたみセクション
 document.querySelectorAll('.collapsible-header').forEach(btn=>{
@@ -1374,6 +1458,7 @@ document.getElementById('m-save').addEventListener('click', async ()=>{
     hasLicense: document.getElementById('m-license').value,
     address: '', phone: '', email: '',
     emergencyName: '', emergencyPhone: '', notes: '',
+    dbsStatus: '未確認', dbsCheckedDate: '', dbsNextDate: '', dbsNote: '',
     history: [{ date: joinDate, type: '配属', facility, role }]
   };
   employees.push(newEmp);
@@ -1526,7 +1611,7 @@ document.getElementById('excel-input').addEventListener('change', async (evt)=>{
         const emp = {
           id:'', name:'', kana:'', facility: FACILITIES[0], role:'', employment:'社員',
           status:'在籍中', birthday:'', gender:'', joinDate:'', resignDate:'', qualification:'', hasLicense:'無', address:'', phone:'',
-          email:'', emergencyName:'', emergencyPhone:'', notes:'', history:[]
+          email:'', emergencyName:'', emergencyPhone:'', notes:'', dbsStatus:'未確認', dbsCheckedDate:'', dbsNextDate:'', dbsNote:'', history:[]
         };
         Object.entries(row).forEach(([header, value])=>{
           const key = HEADER_TO_KEY[header.trim()];
@@ -1590,6 +1675,8 @@ function rowToEmployee(row, historyRows){
     address: row.address || '',
     phone: row.phone || '', email: row.email || '', emergencyName: row.emergency_name || '',
     emergencyPhone: row.emergency_phone || '', notes: row.notes || '', photo: row.photo_url || null,
+    dbsStatus: row.dbs_status || '未確認', dbsCheckedDate: row.dbs_checked_date || '',
+    dbsNextDate: row.dbs_next_date || '', dbsNote: row.dbs_note || '',
     history: (historyRows || []).map(h => ({date: h.date, type: h.type, facility: h.facility, role: h.role}))
   };
 }
@@ -1602,7 +1689,9 @@ function employeeToRow(emp){
     qualification: emp.qualification || null, has_license: emp.hasLicense || '無',
     address: emp.address, phone: emp.phone,
     email: emp.email, emergency_name: emp.emergencyName, emergency_phone: emp.emergencyPhone,
-    notes: emp.notes, photo_url: emp.photo || null
+    notes: emp.notes, photo_url: emp.photo || null,
+    dbs_status: emp.dbsStatus || '未確認', dbs_checked_date: emp.dbsCheckedDate || null,
+    dbs_next_date: emp.dbsNextDate || null, dbs_note: emp.dbsNote || null
   };
 }
 
