@@ -1886,14 +1886,14 @@ async function checkSession(){
 }
 
 
-// ===================== 無操作タイムアウト（5分・検証用に短縮中／本来30分） =====================
+// ===================== 無操作タイムアウト（15分） =====================
 // スマホでタブを複数開いたまま画面を消灯すると、setTimeoutだけに頼るタイマーは
 // ブラウザの省電力機能でバックグラウンド中は進まなくなることがある（iOS/Android共通）。
 // そこで「最終操作時刻」を記録しておき、定期チェックに加えてタブ復帰時にも
 // 経過時間を必ず確認することで、スリープ中に経過した時間も判定に反映されるようにしている。
 let idleCheckTimer = null;
 let sessionActive = false;
-const IDLE_LIMIT_MS = 5 * 60 * 1000;
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
 const LAST_ACTIVITY_KEY = 'forgreen_db_last_activity';
 
 function markActivity(){
