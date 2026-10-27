@@ -361,6 +361,15 @@
   .dbs-badge.soon{ background:#fff; color:#2D5F82; border-color:#2D5F82; }
   .dbs-badge.expired{ background:#A6462F; color:#fff; border-color:#A6462F; }
   .dbs-badge.na{ background:#F1F1EA; color:#7A7A6C; border-color:#DDDDD0; }
+  .dbs-cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+  .dbs-card{ border:1px solid var(--line); border-radius:6px; padding:10px 12px; background:#fff; }
+  .dbs-card .l{ font-size:11.5px; color:var(--ink-soft); }
+  .dbs-card .n{ font-size:26px; font-weight:700; margin-top:2px; color:var(--ink); }
+  .dbs-fac-row{ display:grid; grid-template-columns:150px 1fr 76px; align-items:center; gap:10px; font-size:12.5px; margin-bottom:9px; }
+  .dbs-bar{ height:12px; background:#EEEEE4; border-radius:6px; overflow:hidden; display:flex; }
+  .dbs-bar i{ display:block; height:100%; }
+  .dbs-legend{ display:flex; gap:14px; font-size:12px; color:var(--ink-soft); margin-top:10px; }
+  .dbs-legend span::before{ content:''; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:middle; background:var(--c); }
   .dbs-summary{ font-size:12px; color:var(--ink-soft); padding:0 14px 8px; }
   .dbs-summary b{ color:var(--ink); }
   .dbs-banner{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:6px; border:1px solid; margin-bottom:18px; }
@@ -657,6 +666,7 @@
       <option value="all">全施設を表示</option>
     </select>
     <button class="logout-btn" id="export-work-format" title="施設ごとに在籍者一覧をExcelで出力します（簡易版）">勤務形態一覧を出力</button>
+    <button class="logout-btn" id="dbs-summary-btn" style="display:none;">法確認サマリー</button>
     <button class="logout-btn" id="btn-home">← ホーム</button>
     <span id="role-badge" class="logout-btn" style="display:none; cursor:default;"></span>
     <button class="logout-btn" id="logout-btn" style="display:none;">ログアウト</button>
@@ -770,6 +780,14 @@
       <button class="save" id="m-save">登録する</button>
       <button class="cancel" id="m-cancel">キャンセル</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="dbs-modal-backdrop" style="display:none;">
+  <div class="modal" style="width:min(720px, 94vw);">
+    <h3 class="serif">こども性暴力防止法 確認状況（全体サマリー）</h3>
+    <div id="dbs-modal-body"></div>
+    <div class="save-row"><button class="cancel" id="dbs-modal-close">閉じる</button></div>
   </div>
 </div>
 
@@ -930,6 +948,7 @@ function renderList(){
   const newOnly = document.getElementById('show-new-only').checked;
   const dbsFilterWrap = document.getElementById('dbs-filter-wrap');
   dbsFilterWrap.style.display = canSeeDbs() ? 'flex' : 'none';
+  document.getElementById('dbs-summary-btn').style.display = canSeeDbs() ? '' : 'none';
   const dbsOnly = canSeeDbs() && document.getElementById('show-dbs-only').checked;
   listEl.innerHTML = '';
   const filtered = employees.filter(e=>{
@@ -973,7 +992,6 @@ function renderList(){
         <span class="name">${e.name}</span>
         ${isNewHire(e.joinDate) ? '<span class="new-badge">NEW</span>' : ''}
         <span class="kana">${e.kana}</span>
-        ${dbsBadgeHTML(e) ? `<div style="margin-top:4px;">${dbsBadgeHTML(e)}</div>` : ''}
       </div>
       <span class="facility-tag">${e.facility}</span>
     `;
@@ -1366,8 +1384,48 @@ function dbsEffective(e){
 function dbsBadgeHTML(e){
   if(!canSeeDbs() || e.status === '退職') return '';
   const r = dbsEffective(e);
+  if(r.key === 'no') return ''; // 未確認は初期状態なので、一覧ではバッジを出さない（絞り込み・サマリー・詳細タブで確認できる）
   return `<span class="dbs-badge ${r.key}" title="こども性暴力防止法 確認状況">法確認：${r.label}</span>`;
 }
+
+function openDbsSummary(){
+  const C = {ok:'#4C86AE', pend:'#9A82C8', no:'#C8573A'};
+  const classify = e => {
+    if((e.dbsStatus || '未確認') === '対象外') return null;
+    const eff = dbsEffective(e);
+    if(!eff.needs) return 'ok';
+    return eff.key === 'pend' ? 'pend' : 'no';
+  };
+  const count = list => { const c = {ok:0, pend:0, no:0}; list.forEach(e=>{ const k = classify(e); if(k) c[k]++; }); return c; };
+  const active = employees.filter(e => e.status !== '退職');
+  const all = count(active);
+  const total = all.ok + all.pend + all.no;
+  const facs = [...FACILITIES];
+  active.forEach(e=>{ if(e.facility && !facs.includes(e.facility)) facs.push(e.facility); });
+  const rows = facs.map(f=>{
+    const c = count(active.filter(e => e.facility === f));
+    const t = c.ok + c.pend + c.no;
+    if(t === 0) return '';
+    const w = v => (v / t * 100).toFixed(1) + '%';
+    return `<div class="dbs-fac-row"><span>${f}</span>
+      <div class="dbs-bar"><i style="width:${w(c.ok)};background:${C.ok}"></i><i style="width:${w(c.pend)};background:${C.pend}"></i><i style="width:${w(c.no)};background:${C.no}"></i></div>
+      <span>${c.ok} / ${t}名</span></div>`;
+  }).join('');
+  document.getElementById('dbs-modal-body').innerHTML = `
+    <div class="dbs-cards">
+      <div class="dbs-card"><div class="l">対象職員</div><div class="n">${total}名</div></div>
+      <div class="dbs-card"><div class="l">確認済</div><div class="n" style="color:#2D5F82">${all.ok}名</div></div>
+      <div class="dbs-card"><div class="l">確認中</div><div class="n" style="color:#5B3F8C">${all.pend}名</div></div>
+      <div class="dbs-card"><div class="l">未確認・要更新</div><div class="n" style="color:#A6462F">${all.no}名</div></div>
+    </div>
+    <p style="font-size:13px; font-weight:700; margin:0 0 10px;">施設ごとの確認状況</p>
+    ${rows || '<p style="font-size:13px;">対象の職員がいません。</p>'}
+    <div class="dbs-legend"><span style="--c:${C.ok}">確認済</span><span style="--c:${C.pend}">確認中</span><span style="--c:${C.no}">未確認・要更新（期限間近・期限切れを含む）</span></div>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin:12px 0 0;">在籍中の職員が対象です。退職者と「対象外」は含みません。右端は「確認済 / 対象」の人数です。</p>`;
+  document.getElementById('dbs-modal-backdrop').style.display = 'flex';
+}
+document.getElementById('dbs-summary-btn').addEventListener('click', openDbsSummary);
+document.getElementById('dbs-modal-close').addEventListener('click', ()=>{ document.getElementById('dbs-modal-backdrop').style.display = 'none'; });
 
 function isNewHire(joinDate){
   if(!joinDate) return false;
@@ -1529,10 +1587,20 @@ document.getElementById('export-all').addEventListener('click', ()=>{
     'address','phone','email','emergencyName','emergencyPhone','notes'
   ];
 
-  const rows = employees.map(e => KEY_ORDER.map(k => e[k] ?? ''));
+  // 法確認（こども性暴力防止法）の列：状況・確認日・次回確認の目安のみ（備考・確認結果の中身は出さない）
+  const withDbs = canSeeDbs();
+  const headers = withDbs ? [...TEMPLATE_HEADERS, '法確認状況','法確認日','法確認の次回目安'] : TEMPLATE_HEADERS;
+  const rows = employees.map(e => {
+    const r = KEY_ORDER.map(k => e[k] ?? '');
+    if(withDbs){
+      const eff = dbsEffective(e);
+      r.push(e.status === '退職' ? '' : eff.label, e.dbsCheckedDate || '', e.dbsNextDate || '');
+    }
+    return r;
+  });
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...rows]);
-  ws['!cols'] = TEMPLATE_HEADERS.map(()=>({wch:16}));
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(()=>({wch:16}));
   XLSX.utils.book_append_sheet(wb, ws, "スタッフ一覧");
 
   // 異動履歴は別シートに出す
